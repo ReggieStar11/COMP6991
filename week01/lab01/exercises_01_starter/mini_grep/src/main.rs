@@ -1,3 +1,5 @@
+use std::io::{self};
+
 fn main() {
     let pattern_string = std::env::args()
         .nth(1)
@@ -5,6 +7,12 @@ fn main() {
 
     let pattern = &pattern_string;
 
-    // TODO: Replace the following with your code:
+    for line in io::stdin().lines() {
+        let line = line.expect("Failed to read line");
+        if line.contains(pattern) {
+            println!("{}", line);
+        }
+    }
+
     println!("The command-line argument is: {pattern}");
 }
