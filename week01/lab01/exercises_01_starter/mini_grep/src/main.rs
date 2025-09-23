@@ -14,5 +14,4 @@ fn main() {
         }
     }
 
-    println!("The command-line argument is: {pattern}");
 }
