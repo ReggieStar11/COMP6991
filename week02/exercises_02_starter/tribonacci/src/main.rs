@@ -61,6 +61,13 @@ fn compute_tribonacci(
     // println!("{:?}", numbers);
     // TODO: complete this function!
     println!("Values: {:?}", numbers);
+    println!("");
+    let mut sum = 0;
+    for num in numbers {
+        sum += num;
+    }
+    println!("Sum: {}", sum);
+
     Ok(())
 
 }
