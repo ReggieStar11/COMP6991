@@ -1,0 +1,1 @@
+{"rustc":17575471286409424799,"features":"[\"default\"]","declared_features":"[\"default\", \"serde\"]","target":16947090478208026085,"profile":5347358027863023418,"path":151496146408017761,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/geoutils-d3094cbe326af8b8/dep-lib-geoutils","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}
