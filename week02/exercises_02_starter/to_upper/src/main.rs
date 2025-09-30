@@ -1,16 +1,21 @@
 fn main() {
     // try and get the first argument
     // using some iterator methods
-    let arg = std::env::args()// TODO: get the first argument
+    let arg = std::env::args().nth(1);// TODO: get the first argument
+
+    let argument = arg.unwrap();
+
+    
 
     // the compiler suggests to "borrow here"
     // but we haven't learnt how to borrow :(
     // we have a String type, and want to get a &str
     // Try find a function that can help us using
     // the docs https://doc.rust-lang.org/stable/std/string/struct.String.html
-    let upp = uppercase(arg);
     
-    println!("arg = {}", arg);
+    let upp = uppercase(argument.as_str());
+    
+    println!("arg = {}", argument);
     println!("upp = {}", upp);
 }
 
@@ -23,7 +28,8 @@ fn uppercase(src: &str) -> String {
         // what type does push expect?
         // Food for thought, what exactly is src.chars()?
         // TODO: read the docs!
-        destination.push(c.to_uppercase());
+        let item = c.to_string();
+        destination.push_str(item.to_uppercase().as_str());
     }
 
     destination
