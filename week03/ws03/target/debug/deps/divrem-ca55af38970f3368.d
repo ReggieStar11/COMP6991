@@ -1,0 +1,12 @@
+/Users/richard/Coding/COMP6991/week03/ws03/target/debug/deps/divrem-ca55af38970f3368.d: /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/lib.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/macros.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/ceil.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/euclid.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/floor.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/trunc.rs
+
+/Users/richard/Coding/COMP6991/week03/ws03/target/debug/deps/libdivrem-ca55af38970f3368.rlib: /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/lib.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/macros.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/ceil.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/euclid.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/floor.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/trunc.rs
+
+/Users/richard/Coding/COMP6991/week03/ws03/target/debug/deps/libdivrem-ca55af38970f3368.rmeta: /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/lib.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/macros.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/ceil.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/euclid.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/floor.rs /Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/trunc.rs
+
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/lib.rs:
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/macros.rs:
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/ceil.rs:
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/euclid.rs:
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/floor.rs:
+/Users/richard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/divrem-1.0.0/src/trunc.rs:
