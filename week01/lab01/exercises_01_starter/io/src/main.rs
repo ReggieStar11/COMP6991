@@ -1,19 +1,15 @@
-use std::io::{self, Write};
+use std::io;
 
 fn main() {
-    print!("What is your name? ");
-    io::stdout().flush().unwrap();
+    println!("What is your name?");
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
         .expect("No name entered :(, goodbye.");
 
+    // Remove the newline character at the end
     let name = input.trim();
 
-    if name.is_empty() {
-        println!("No name entered :(, goodbye.");
-    } else {
-        println!("Hello, {}, nice to meet you!", name);
-    }
+    println!("Hello, {}, nice to meet you!", name);
 }

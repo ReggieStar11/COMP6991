@@ -45,7 +45,9 @@ pub fn data_preprocessing() -> Result<Data, Box<dyn Error>> {
 
 /// What is the north-most station?
 pub fn find_north_most_station(data: &Data) -> Option<String> {
-    // TODO: implement
+    student_list
+    .into_iter()
+    .max_by(|x, y |x.gpa.partial_cmp(&y.gpa).unwrap())
     todo!()
 }
 
@@ -69,8 +71,15 @@ pub fn find_west_most_station(data: &Data) -> Option<String> {
 
 /// Return the names of the most and least used (total entries + exits) stations on the NSW network at each time of day, in total over all of the years.
 pub fn most_least_used_stations(data: &Data, time_of_day: TimeOfDay) -> Option<(String, String)> {
-    // TODO: implement
-    todo!()
+    let mut hash: HashMap<String, Vec<Record>> = HashMap::new();
+
+    for r in data.records {
+        mat
+
+
+    }
+
+   
 }
 
 // TODO: if you think the Vec return type is inefficient/unsuitable, ask your tutor about more flexible alternatives (hint: iterators).
@@ -240,4 +249,87 @@ fn convert_csvrecord_to_record(csv_record: &CSVRecord) -> Record {
     }
 
     record
+}
+
+
+// use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+#[derive(Clone)]
+struct Student {
+    student_id: i32,
+    name: String,
+    major: String,
+    gpa: f64,
+}
+
+fn m() {
+    let path = "students.csv";
+    let mut rdr = csv::Reader::from_path(path).expect("failed to read from path");
+    let records = rdr.deserialize::<Student>();
+                                                    // ::<Student>() will deserialise into the type/struct student
+    let mut students= Vec::new();
+
+    for student in records {
+        let student = student.unwrap();
+        students.push(student);
+        // println!("{:?}", student);
+    }
+
+    let highest_achiever = highest_achiever(students.clone());
+    let highest_achiever_functional = highest_achiever_functional(students.clone());
+
+
+    println!("{:?}", highest_achiever);
+    println!("{:?}", highest_achiever_functional);
+
+    let student_by_major = group_students_by_major(students.clone());
+    println!("{:?}", student_by_major);
+
+}
+
+fn highest_achiever(student_list: Vec<Student>) -> Option<Student> {
+    let mut highest: Option<Student> = None;
+
+    for student in student_list {
+        match &highest {
+            Some(curr_highest) => {
+                // Assuming Student has a field `gpa: f64`
+                if student.gpa > curr_highest.gpa {
+                    highest = Some(student);
+                }
+            }
+            None => highest = Some(student),
+        }
+    }
+    highest
+}
+
+// same functionality as previous
+fn highest_achiever_functional(student_list: Vec<Student>) -> Option<Student> {
+    student_list
+    .into_iter()
+    .max_by(|x, y |x.gpa.partial_cmp(&y.gpa).unwrap())
+
+}
+
+fn group_students_by_major(student_list: Vec<Student>) -> HashMap<String, Vec<Student>> {
+    let mut hashmap: HashMap<String, Vec<Student>> = HashMap::new();
+
+    for student in student_list {
+        // if hashmap.contains_key(&student.major) {
+        //     hashmap.get_mut(&student.major).unwrap().push(student);
+        // } else {
+        //     hashmap.insert(student.major.clone(), vec![student]);
+
+        // }
+        hashmap
+        .entry(student.major.clone())
+        .or_insert_with(Vec::new)
+        .push(student);
+    }
+
+    hashmap
+
+
 }
