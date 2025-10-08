@@ -1,0 +1,53 @@
+Assignment Specs
+
+Impl Struct Block
+
+impl Add for Point {
+    typer Output = Self;
+
+    fn add(self, other: Self)
+}
+Impl Trait Block
+
+trait Animal {
+    fn walk(&self) {}
+}
+
+struct Sheep {
+    name: String,
+}
+
+impl Sheep {
+    fn bass(&self) {
+        println!("baasss");
+    }
+}
+
+struct Dog {
+
+}
+
+impl Animal for Sheep {
+    fn walk(&self) {
+        println!("{} sheep walking, self.name")
+    }
+}
+
+fn main() {
+    let sheep = Sheep {
+        name: "Shaun".to_string(),
+    };
+    Sheep::walk();
+}
+Rust Doc
+
+Modularity
+
+
+private by default
+let rectangle = shape::rectangle::Rectangle 
+// meaning we access the shapes folder, then go into the rectangle file
+mod.rs 
+
+
+pub mod circle;
