@@ -24,7 +24,7 @@ pub fn identity<'a>(number: &'a i32) -> &'a i32 {
 /// assert_eq!(splitted, vec!["this", "is", "a", "test"]);
 /// ```
 #[require_lifetimes(!)]
-pub fn split<'a> (text: &'a str, delimiter: &'a str) -> Vec<&'a str> {
+pub fn split<'a, 'b> (text: &'a str, delimiter: &'b str) -> Vec<&'a str> {
     let mut last_split = 0;
     let mut matches: Vec<&str> = vec![];
     for i in 0..text.len() {
