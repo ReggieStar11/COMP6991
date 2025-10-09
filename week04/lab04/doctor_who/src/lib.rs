@@ -1,13 +1,37 @@
+//! # Doctor Who Caesar Cipher Library
+//! 
+//! This crate provides functionality for Caesar cipher operations
+
+/// The default shift value when none is specified
 const DEFAULT_SHIFT: i32 = 5;
+
+/// ASCII value of uppercase 'A'
 const UPPERCASE_A: i32 = 65;
+
+/// ASCII value of lowercase 'A'
 const LOWERCASE_A: i32 = 97;
+
+/// The value of alphabet size
 const ALPHABET_SIZE: i32 = 26;
 
-fn caesar_shift(shift_by: Option<i32>, lines: Vec<String>) -> Vec<String> {
+/// Applies Caesar cipher to multiple lines of text.
+/// 
+/// Takes an optional shift value and vector of strings.
+/// 
+/// ## Examples
+/// 
+/// ```
+/// let input = vec!["Hello".to_string()];
+/// let result = doctor_who::caesar_shift(Some(3), input);
+/// assert_eq!(result, vec!["Khoor".to_string()]);
+/// ```
+/// 
+/// ## Returns
+/// `Vec<String>`
+
+pub fn caesar_shift(shift_by: Option<i32>, lines: Vec<String>) -> Vec<String> {
     let shift_number = shift_by.unwrap_or(DEFAULT_SHIFT);
     
-    // no idea what this is doing? Ask the forums and/or 
-    // look back at the functional programming lectures!
     lines
         .iter()
         .map(|line| shift(shift_number, line.to_string()))
