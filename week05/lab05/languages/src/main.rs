@@ -31,7 +31,16 @@ struct Person {
 }
 
 // TODO (1): Add your impl From block below, before main!
-
+impl From<&str> for Box<dyn Greeting> {
+    fn from(s: &str) -> Box<dyn Greeting> {
+        match s {
+            "English" => Box::new(English),
+            "Spanish" => Box::new(Spanish),
+            "French" => Box::new(French),
+            _ => unreachable!(),
+        }
+    }
+}
 
 // DO NOT NEED TO CHANGE MAIN
 fn main() {
@@ -54,5 +63,7 @@ fn main() {
 
 fn speak_all_greetings(person: &Person) {
     println!("{} says:", person.name);
-    //TODO (2): iterate over the greetings and call greet() on each one
+    for g in &person.greetings {
+        g.greet();
+    }
 }
