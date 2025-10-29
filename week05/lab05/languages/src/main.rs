@@ -26,11 +26,9 @@ impl Greeting for French {
 
 struct Person {
     name: String,
-    // Do you understand why this is `Box<dyn Greeting>>` instead of `Box<Greeting>` ?
     greetings: Vec<Box<dyn Greeting>>,
 }
 
-// TODO (1): Add your impl From block below, before main!
 impl From<&str> for Box<dyn Greeting> {
     fn from(s: &str) -> Box<dyn Greeting> {
         match s {
@@ -44,7 +42,6 @@ impl From<&str> for Box<dyn Greeting> {
 
 // DO NOT NEED TO CHANGE MAIN
 fn main() {
-    // john can speak English and Spanish
     let person = Person {
         name: "John".to_string(),
         greetings: vec!["English".into(), "Spanish".into()],
@@ -52,7 +49,6 @@ fn main() {
 
     speak_all_greetings(&person);
 
-    // jane can speak French
     let person = Person {
         name: "Jane".to_string(),
         greetings: vec!["French".into()],
