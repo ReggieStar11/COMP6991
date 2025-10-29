@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use ortalib::{Card, Chips, Mult, PokerHand, Rank, Round, Suit, Enhancement, Edition};
+use crate::jokers;
+use crate::cards::PlayedCard;
+
 
 #[derive(Debug)]
 pub struct ScoringState {
@@ -147,42 +150,75 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
 }
 
 pub fn score(round: Round) -> (Chips, Mult) {
-    let (hand, scoring_cards) = detect_best_hand(&round.cards_played);
+    // Build mutable scoring state and joker registry
+    let mut state = ScoringState::new(round);
+    let registry = jokers::build_registry();
 
+    // Phase 1: independent jokers (apply before scoring cards)
+    // iterate over a snapshot to avoid borrowing `state` immutably while we mutate it
+    let jokers_snapshot = state.round.jokers.clone();
+    for jc in jokers_snapshot.iter() {
+        if let Some(effect) = registry.get(&jc.joker) {
+            effect.apply_independent(&mut state);
+        }
+    }
+
+    // Detect best hand (uses raw cards; wild-aware flush detection included)
+    let (hand, scoring_cards) = detect_best_hand(&state.round.cards_played);
+
+    // Wrap scoring cards so we can use PlayedCard helpers
+    let scoring_wrapped: Vec<PlayedCard> = scoring_cards.into_iter().map(PlayedCard::new).collect();
+
+    // Apply base hand values
     let (base_chips, base_mult) = hand.hand_value();
-    let mut chips: Chips = base_chips;
-    let mut mult: Mult = base_mult;
+    state.chips += base_chips;
+    state.mult *= base_mult;
 
-    // per scoring card (left->right)
-    for c in scoring_cards.iter() {
-        // base chips
-        chips += c.rank.rank_value();
+    // Per scoring card (left->right)
+    for (idx, pc) in scoring_wrapped.iter().enumerate() {
+        // base chips using wrapper
+        state.chips += pc.base_chips();
 
-        // enhancements applied when the card is scored
-        match c.enhancement {
-            Some(Enhancement::Bonus) => chips += 30.0,
-            Some(Enhancement::Mult) => mult += 4.0,
-            Some(Enhancement::Glass) => mult *= 2.0,
+        // enhancements applied when the card is scored (access via inner)
+        match pc.inner.enhancement {
+            Some(Enhancement::Bonus) => state.chips += 30.0,
+            Some(Enhancement::Mult) => state.mult += 4.0,
+            Some(Enhancement::Glass) => state.mult *= 2.0,
             Some(Enhancement::Wild) => {},
             Some(Enhancement::Steel) => {},
             None => {},
         }
 
         // editions (Foil/Holographic/Polychrome)
-        match c.edition {
-            Some(Edition::Foil) => chips += 50.0,
-            Some(Edition::Holographic) => mult += 10.0,
-            Some(Edition::Polychrome) => mult *= 1.5,
+        match pc.inner.edition {
+            Some(Edition::Foil) => state.chips += 50.0,
+            Some(Edition::Holographic) => state.mult += 10.0,
+            Some(Edition::Polychrome) => state.mult *= 1.5,
             None => {},
         }
-    }
 
-    // held-in-hand Steel multipliers (left->right)
-    for held in round.cards_held_in_hand.iter() {
-        if held.enhancement == Some(Enhancement::Steel) {
-            mult *= 1.5;
+        // allow jokers to react to this scored card (use snapshot)
+        for jc in jokers_snapshot.iter() {
+            if let Some(effect) = registry.get(&jc.joker) {
+                effect.apply_on_scored(&mut state, idx);
+            }
         }
     }
 
-    (chips, mult)
+    // Held-in-hand Steel multipliers (left->right)
+    let held_wrapped: Vec<PlayedCard> = state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
+    for (held_idx, held) in held_wrapped.iter().enumerate() {
+        if held.is_steel() {
+            state.mult *= 1.5;
+        }
+
+        // allow jokers to react to held cards
+        for jc in jokers_snapshot.iter() {
+            if let Some(effect) = registry.get(&jc.joker) {
+                effect.apply_on_held(&mut state, held_idx);
+            }
+        }
+    }
+
+    (state.chips, state.mult)
 }
