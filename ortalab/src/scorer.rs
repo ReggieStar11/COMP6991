@@ -170,40 +170,20 @@ pub fn score(round: Round) -> (Chips, Mult) {
             effect.apply_independent(&mut state);
         }
     }
-
-    // Wrap scoring cards so we can use PlayedCard helpers
-    let scoring_wrapped: Vec<PlayedCard> = scoring_cards.into_iter().map(PlayedCard::new).collect();
-
-    // Per scoring card (left->right)
-    for (idx, pc) in scoring_wrapped.iter().enumerate() {
-        // base chips using wrapper
-        state.chips += pc.base_chips();
-
-        // enhancements applied when the card is scored (access via inner)
-        match pc.inner.enhancement {
-            Some(Enhancement::Bonus) => state.chips += 30.0,
-            Some(Enhancement::Mult) => state.mult += 4.0,
-            Some(Enhancement::Glass) => state.mult *= 2.0,
-            Some(Enhancement::Wild) => {},
-            Some(Enhancement::Steel) => {},
-            None => {},
-        }
-
-        // editions (Foil/Holographic/Polychrome)
-        match pc.inner.edition {
-            Some(Edition::Foil) => state.chips += 50.0,
-            Some(Edition::Holographic) => state.mult += 10.0,
-            Some(Edition::Polychrome) => state.mult *= 1.5,
-            None => {},
-        }
-
-        // allow jokers to react to this scored card (use snapshot)
-        for jc in jokers_snapshot.iter() {
-            if let Some(effect) = registry.get(&jc.joker) {
-                effect.apply_on_scored(&mut state, idx);
-            }
-        }
+for jc in jokers_snapshot.iter() {
+    // JokerCard has no `enhancement` field; apply editions on the Joker card instead.
+    match jc.edition {
+        Some(Edition::Foil) => state.chips += 50.0,
+        Some(Edition::Holographic) => state.mult += 10.0,
+        Some(Edition::Polychrome) => state.mult *= 1.5,
+        None => {},
     }
+
+    // Then apply the joker's independent behaviour
+    if let Some(effect) = registry.get(&jc.joker) {
+        effect.apply_independent(&mut state);
+    }
+}
 
     // Held-in-hand Steel multipliers (left->right)
     let held_wrapped: Vec<PlayedCard> = state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
