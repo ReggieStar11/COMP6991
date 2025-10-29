@@ -154,7 +154,15 @@ pub fn score(round: Round) -> (Chips, Mult) {
     let mut state = ScoringState::new(round);
     let registry = jokers::build_registry();
 
-    // Phase 1: independent jokers (apply before scoring cards)
+    // Detect best hand (uses raw cards; wild-aware flush detection included)
+    let (hand, scoring_cards) = detect_best_hand(&state.round.cards_played);
+
+    // Apply base hand values first
+    let (base_chips, base_mult) = hand.hand_value();
+    state.chips += base_chips;
+    state.mult *= base_mult;
+
+    // Phase 1: independent jokers (apply after base hand values)
     // iterate over a snapshot to avoid borrowing `state` immutably while we mutate it
     let jokers_snapshot = state.round.jokers.clone();
     for jc in jokers_snapshot.iter() {
@@ -163,16 +171,8 @@ pub fn score(round: Round) -> (Chips, Mult) {
         }
     }
 
-    // Detect best hand (uses raw cards; wild-aware flush detection included)
-    let (hand, scoring_cards) = detect_best_hand(&state.round.cards_played);
-
     // Wrap scoring cards so we can use PlayedCard helpers
     let scoring_wrapped: Vec<PlayedCard> = scoring_cards.into_iter().map(PlayedCard::new).collect();
-
-    // Apply base hand values
-    let (base_chips, base_mult) = hand.hand_value();
-    state.chips += base_chips;
-    state.mult *= base_mult;
 
     // Per scoring card (left->right)
     for (idx, pc) in scoring_wrapped.iter().enumerate() {
