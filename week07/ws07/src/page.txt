@@ -1,0 +1,8 @@
+struct Coordinate {
+    x: i32
+}
+
+fn main() {
+    println!("Hello world!");
+}
+

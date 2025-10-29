@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use ortalib::{Card, Chips, Mult, PokerHand, Rank, Round, Suit, Enhancement, Edition};
 
-/// Minimal mutable scoring context (used later by jokers).
 #[derive(Debug)]
 pub struct ScoringState {
     pub round: Round,
@@ -147,7 +146,6 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
     (PokerHand::HighCard, Vec::new())
 }
 
-/// Score a round with Stage 2 modifiers: enhancements & editions.
 pub fn score(round: Round) -> (Chips, Mult) {
     let (hand, scoring_cards) = detect_best_hand(&round.cards_played);
 
