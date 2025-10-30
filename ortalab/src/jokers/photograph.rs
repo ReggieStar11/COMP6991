@@ -1,5 +1,5 @@
 use crate::scorer::ScoringState;
-use ortalib::{JokerCard};
+use ortalib::JokerCard;
 
 pub struct Photograph { pub activated: bool }
 impl super::JokerEffect for Photograph {

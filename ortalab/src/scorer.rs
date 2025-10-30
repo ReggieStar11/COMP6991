@@ -43,14 +43,35 @@ pub struct ScoringEngine {
     state: ScoringState,
     joker_registry: std::collections::HashMap<ortalib::Joker, Box<dyn JokerEffect>>,
     best_poker_hand: (PokerHand, Vec<Card>),
+    four_fingers_active: bool,
+    shortcut_active: bool,
+    smeared_active: bool,
 }
 
 impl ScoringEngine {
     pub fn new(round: Round) -> Self {
         let state = ScoringState::new(round);
         let joker_registry = jokers::build_registry();
-        let best_poker_hand = detect_best_hand(&state.round.cards_played);
-        Self { state, joker_registry, best_poker_hand }
+
+        let mut four_fingers_active = false;
+        let mut shortcut_active = false;
+        let mut smeared_active = false;
+
+        for jc in state.round.jokers.iter() {
+            if jc.joker == ortalib::Joker::FourFingers {
+                four_fingers_active = true;
+            }
+            if jc.joker == ortalib::Joker::Shortcut {
+                shortcut_active = true;
+            }
+            if jc.joker == ortalib::Joker::SmearedJoker {
+                smeared_active = true;
+            }
+            // Other effect jokers will be handled here as well
+        }
+
+        let best_poker_hand = detect_best_hand(&state.round.cards_played, four_fingers_active, shortcut_active);
+        Self { state, joker_registry, best_poker_hand, four_fingers_active, shortcut_active, smeared_active }
     }
 
     pub fn score(mut self) -> (Chips, Mult) {
@@ -169,10 +190,102 @@ pub fn is_flush_with_wild(cards: &[Card]) -> bool {
     false
 }
 
-pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
+pub fn is_flush(cards: &[Card], four_fingers_active: bool) -> bool {
+    if four_fingers_active && cards.len() >= 4 {
+        // Check for 4-card flush
+        for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
+            if cards.iter().filter(|c| c.suit == s || c.enhancement == Some(Enhancement::Wild)).count() >= 4 {
+                return true;
+            }
+        }
+    }
+    if cards.len() == 5 { // Fallback to 5-card flush if four_fingers_active is false or no 4-card flush found
+        for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
+            if cards.iter().all(|c| c.suit == s || c.enhancement == Some(Enhancement::Wild)) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub fn is_straight_with_flags(cards: &[Card], four_fingers_active: bool, shortcut_active: bool) -> bool {
+    let min_len = if four_fingers_active { 4 } else { 5 };
+    if cards.len() < min_len { return false; }
+
+    let mut ranks: Vec<Rank> = cards.iter().map(|c| c.rank).collect();
+    ranks.sort();
+    ranks.dedup();
+    if ranks.len() < min_len { return false; }
+
+    fn rank_to_val(r: Rank) -> u8 {
+        match r {
+            Rank::Two => 2, Rank::Three => 3, Rank::Four => 4, Rank::Five => 5,
+            Rank::Six => 6, Rank::Seven => 7, Rank::Eight => 8, Rank::Nine => 9,
+            Rank::Ten => 10, Rank::Jack => 11, Rank::Queen => 12, Rank::King => 13,
+            Rank::Ace => 14,
+        }
+    }
+
+    let mut vals: Vec<u8> = ranks.iter().map(|r| rank_to_val(*r)).collect();
+    vals.sort();
+
+    // Handle Ace low straight (A, 2, 3, 4, 5)
+    let mut ace_low_vals = vals.clone();
+    if let Some(pos) = ace_low_vals.iter().position(|&v| v == 14) {
+        ace_low_vals[pos] = 1;
+        ace_low_vals.sort();
+    }
+
+    let check_straight = |current_vals: &[u8]| {
+        for i in 0..current_vals.len() - 1 {
+            if shortcut_active {
+                if current_vals[i + 1] - current_vals[i] > 2 {
+                    return false;
+                }
+            } else {
+                if current_vals[i + 1] - current_vals[i] != 1 {
+                    return false;
+                }
+            }
+        }
+        true
+    };
+
+    check_straight(&vals) || check_straight(&ace_low_vals)
+}
+
+pub fn is_flush_with_wild_and_flags(cards: &[Card], four_fingers_active: bool) -> bool {
+    let min_len = if four_fingers_active { 4 } else { 5 };
+    if cards.len() < min_len { return false; }
+
+    for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
+        if cards.iter().filter(|c| c.suit == s || c.enhancement == Some(Enhancement::Wild)).count() >= min_len {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn is_flush_with_smeared_and_flags(cards: &[Card], four_fingers_active: bool, smeared_active: bool) -> bool {
+    let min_len = if four_fingers_active || smeared_active { 4 } else { 5 };
+    if cards.len() < min_len { return false; }
+
+    for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
+        if cards.iter().filter(|c| {
+            let is_smeared_wild = smeared_active && (c.suit == Suit::Hearts || c.suit == Suit::Diamonds);
+            c.suit == s || c.enhancement == Some(Enhancement::Wild) || is_smeared_wild
+        }).count() >= min_len {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn detect_best_hand(cards: &[Card], four_fingers_active: bool, shortcut_active: bool) -> (PokerHand, Vec<Card>) {
     let rank_groups = group_by_rank(cards);
 
-    let all_same_suit = is_flush_with_wild(cards);
+    let all_same_suit = is_flush_with_wild_and_flags(cards, four_fingers_active);
     let find_group_by_size = |size: usize| -> Option<Vec<Card>> {
         rank_groups.values().find(|v| v.len() == size).cloned()
     };
@@ -192,7 +305,7 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
             return (PokerHand::FiveOfAKind, v);
         }
 
-        if is_straight(cards) && all_same_suit {
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) && is_flush_with_wild_and_flags(cards, four_fingers_active) {
             return (PokerHand::StraightFlush, cards.to_vec());
         }
 
@@ -208,7 +321,214 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
             return (PokerHand::Flush, cards.to_vec());
         }
 
-        if is_straight(cards) {
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) {
+            return (PokerHand::Straight, cards.to_vec());
+        }
+    }
+
+    if let Some(v) = find_group_by_size(3) {
+        return (PokerHand::ThreeOfAKind, v);
+    }
+
+    let mut pairs: Vec<(&Rank, &Vec<Card>)> =
+        rank_groups.iter().filter(|(_, v)| v.len() == 2).collect();
+    if pairs.len() >= 2 {
+        pairs.sort_by(|a, b| b.0.cmp(a.0));
+        let mut cards_out = Vec::new();
+        cards_out.extend(pairs[0].1.iter().copied());
+        cards_out.extend(pairs[1].1.iter().copied());
+        return (PokerHand::TwoPair, cards_out);
+    }
+
+    if let Some(v) = find_group_by_size(2) {
+        return (PokerHand::Pair, v);
+    }
+
+    if let Some(&best) = cards.iter().max() {
+        return (PokerHand::HighCard, vec![best]);
+    }
+
+    (PokerHand::HighCard, Vec::new())
+}
+
+pub fn detect_best_hand_with_flags(cards: &[Card], four_fingers_active: bool, shortcut_active: bool, smeared_active: bool) -> (PokerHand, Vec<Card>) {
+    let rank_groups = group_by_rank(cards);
+
+    let all_same_suit = is_flush_with_smeared_and_flags(cards, four_fingers_active, smeared_active);
+    let find_group_by_size = |size: usize| -> Option<Vec<Card>> {
+        rank_groups.values().find(|v| v.len() == size).cloned()
+    };
+
+    if cards.len() == 5 {
+        if rank_groups.len() == 1 && all_same_suit {
+            return (PokerHand::FlushFive, cards.to_vec());
+        }
+
+        let has_3 = rank_groups.values().any(|v| v.len() == 3);
+        let has_2 = rank_groups.values().any(|v| v.len() == 2);
+        if has_3 && has_2 && all_same_suit {
+            return (PokerHand::FlushHouse, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(5) {
+            return (PokerHand::FiveOfAKind, v);
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) && all_same_suit {
+            return (PokerHand::StraightFlush, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(4) {
+            return (PokerHand::FourOfAKind, v);
+        }
+
+        if has_3 && has_2 {
+            return (PokerHand::FullHouse, cards.to_vec());
+        }
+
+        if all_same_suit {
+            return (PokerHand::Flush, cards.to_vec());
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) {
+            return (PokerHand::Straight, cards.to_vec());
+        }
+    }
+
+    if let Some(v) = find_group_by_size(3) {
+        return (PokerHand::ThreeOfAKind, v);
+    }
+
+    let mut pairs: Vec<(&Rank, &Vec<Card>)> =
+        rank_groups.iter().filter(|(_, v)| v.len() == 2).collect();
+    if pairs.len() >= 2 {
+        pairs.sort_by(|a, b| b.0.cmp(a.0));
+        let mut cards_out = Vec::new();
+        cards_out.extend(pairs[0].1.iter().copied());
+        cards_out.extend(pairs[1].1.iter().copied());
+        return (PokerHand::TwoPair, cards_out);
+    }
+
+    if let Some(v) = find_group_by_size(2) {
+        return (PokerHand::Pair, v);
+    }
+
+    if let Some(&best) = cards.iter().max() {
+        return (PokerHand::HighCard, vec![best]);
+    }
+
+    (PokerHand::HighCard, Vec::new())
+}
+
+pub fn detect_best_hand_with_flags_scorer(cards: &[Card], four_fingers_active: bool, shortcut_active: bool, smeared_active: bool) -> (PokerHand, Vec<Card>) {
+    let rank_groups = group_by_rank(cards);
+
+    let all_same_suit = is_flush_with_smeared_and_flags(cards, four_fingers_active, smeared_active);
+    let find_group_by_size = |size: usize| -> Option<Vec<Card>> {
+        rank_groups.values().find(|v| v.len() == size).cloned()
+    };
+
+    if cards.len() == 5 {
+        if rank_groups.len() == 1 && all_same_suit {
+            return (PokerHand::FlushFive, cards.to_vec());
+        }
+
+        let has_3 = rank_groups.values().any(|v| v.len() == 3);
+        let has_2 = rank_groups.values().any(|v| v.len() == 2);
+        if has_3 && has_2 && all_same_suit {
+            return (PokerHand::FlushHouse, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(5) {
+            return (PokerHand::FiveOfAKind, v);
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) && all_same_suit {
+            return (PokerHand::StraightFlush, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(4) {
+            return (PokerHand::FourOfAKind, v);
+        }
+
+        if has_3 && has_2 {
+            return (PokerHand::FullHouse, cards.to_vec());
+        }
+
+        if all_same_suit {
+            return (PokerHand::Flush, cards.to_vec());
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) {
+            return (PokerHand::Straight, cards.to_vec());
+        }
+    }
+
+    if let Some(v) = find_group_by_size(3) {
+        return (PokerHand::ThreeOfAKind, v);
+    }
+
+    let mut pairs: Vec<(&Rank, &Vec<Card>)> =
+        rank_groups.iter().filter(|(_, v)| v.len() == 2).collect();
+    if pairs.len() >= 2 {
+        pairs.sort_by(|a, b| b.0.cmp(a.0));
+        let mut cards_out = Vec::new();
+        cards_out.extend(pairs[0].1.iter().copied());
+        cards_out.extend(pairs[1].1.iter().copied());
+        return (PokerHand::TwoPair, cards_out);
+    }
+
+    if let Some(v) = find_group_by_size(2) {
+        return (PokerHand::Pair, v);
+    }
+
+    if let Some(&best) = cards.iter().max() {
+        return (PokerHand::HighCard, vec![best]);
+    }
+
+    (PokerHand::HighCard, Vec::new())
+}
+
+pub fn detect_best_hand_main(cards: &[Card], four_fingers_active: bool, shortcut_active: bool, smeared_active: bool) -> (PokerHand, Vec<Card>) {
+    let rank_groups = group_by_rank(cards);
+
+    let all_same_suit = is_flush_with_smeared_and_flags(cards, four_fingers_active, smeared_active);
+    let find_group_by_size = |size: usize| -> Option<Vec<Card>> {
+        rank_groups.values().find(|v| v.len() == size).cloned()
+    };
+
+    if cards.len() == 5 {
+        if rank_groups.len() == 1 && all_same_suit {
+            return (PokerHand::FlushFive, cards.to_vec());
+        }
+
+        let has_3 = rank_groups.values().any(|v| v.len() == 3);
+        let has_2 = rank_groups.values().any(|v| v.len() == 2);
+        if has_3 && has_2 && all_same_suit {
+            return (PokerHand::FlushHouse, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(5) {
+            return (PokerHand::FiveOfAKind, v);
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) && all_same_suit {
+            return (PokerHand::StraightFlush, cards.to_vec());
+        }
+
+        if let Some(v) = find_group_by_size(4) {
+            return (PokerHand::FourOfAKind, v);
+        }
+
+        if has_3 && has_2 {
+            return (PokerHand::FullHouse, cards.to_vec());
+        }
+
+        if all_same_suit {
+            return (PokerHand::Flush, cards.to_vec());
+        }
+
+        if is_straight_with_flags(cards, four_fingers_active, shortcut_active) {
             return (PokerHand::Straight, cards.to_vec());
         }
     }

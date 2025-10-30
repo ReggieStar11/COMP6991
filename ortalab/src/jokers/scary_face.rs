@@ -1,5 +1,5 @@
 use crate::scorer::ScoringState;
-use ortalib::{JokerCard};
+use ortalib::JokerCard;
 
 pub struct ScaryFace;
 impl super::JokerEffect for ScaryFace {

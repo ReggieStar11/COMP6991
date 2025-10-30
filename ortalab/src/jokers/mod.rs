@@ -30,28 +30,34 @@ pub mod odd_todd;
 pub mod photograph;
 pub mod smiley_face;
 pub mod flower_pot;
+pub mod four_fingers;
+pub mod shortcut;
+pub mod mime;
+pub mod pareidolia;
+pub mod splash;
+pub mod sock_and_buskin;
+pub mod smeared_joker;
+pub mod blueprint;
 
 pub use self::joker::JokerEffect;
 
 /// Helper predicates that inspect the played cards using scorer helpers.
 fn contains_pair(cards: &[ortalib::Card]) -> bool {
-    let groups = crate::scorer::group_by_rank(cards);
-    groups.values().any(|v| v.len() >= 2)
+    crate::scorer::group_by_rank(cards).values().any(|v| v.len() >= 2)
 }
 fn contains_three_of_a_kind(cards: &[ortalib::Card]) -> bool {
-    let groups = crate::scorer::group_by_rank(cards);
-    groups.values().any(|v| v.len() >= 3)
+    crate::scorer::group_by_rank(cards).values().any(|v| v.len() >= 3)
 }
 fn contains_two_pair(cards: &[ortalib::Card]) -> bool {
     let groups = crate::scorer::group_by_rank(cards);
     let pairs = groups.values().filter(|v| v.len() == 2).count();
     pairs >= 2
 }
-fn contains_straight(cards: &[ortalib::Card]) -> bool {
-    crate::scorer::is_straight(cards)
+fn contains_straight(cards: &[ortalib::Card], four_fingers_active: bool, shortcut_active: bool, _smeared_active: bool) -> bool {
+    crate::scorer::is_straight_with_flags(cards, four_fingers_active, shortcut_active)
 }
-fn contains_flush(cards: &[ortalib::Card]) -> bool {
-    crate::scorer::is_flush_with_wild(cards)
+fn contains_flush(cards: &[ortalib::Card], four_fingers_active: bool, _smeared_active: bool) -> bool {
+    crate::scorer::is_flush_with_smeared_and_flags(cards, four_fingers_active, _smeared_active)
 }
 
 /// Build registry mapping ortalib::Joker -> boxed behaviour.
@@ -86,6 +92,14 @@ pub fn build_registry() -> HashMap<OrtaJoker, Box<dyn JokerEffect>> {
     m.insert(J::Photograph, Box::new(photograph::Photograph { activated: false }));
     m.insert(J::SmileyFace, Box::new(smiley_face::SmileyFace {}));
     m.insert(J::FlowerPot, Box::new(flower_pot::FlowerPot {}));
+    m.insert(J::FourFingers, Box::new(four_fingers::FourFingers {}));
+    m.insert(J::Shortcut, Box::new(shortcut::Shortcut {}));
+    m.insert(J::Mime, Box::new(mime::Mime {}));
+    m.insert(J::Pareidolia, Box::new(pareidolia::Pareidolia {}));
+    m.insert(J::Splash, Box::new(splash::Splash {}));
+    m.insert(J::SockAndBuskin, Box::new(sock_and_buskin::SockAndBuskin {}));
+    m.insert(J::SmearedJoker, Box::new(smeared_joker::SmearedJoker {}));
+    m.insert(J::Blueprint, Box::new(blueprint::Blueprint {}));
 
     m
 }
