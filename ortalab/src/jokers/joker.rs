@@ -1,5 +1,5 @@
 use crate::scorer::ScoringState;
-use ortalib::{Edition, JokerCard};
+use ortalib::JokerCard;
 
 /// JokerEffect trait: implement this in each joker file.
 pub trait JokerEffect {
@@ -11,6 +11,6 @@ pub struct Joker;
 impl super::JokerEffect for Joker {
     fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard) {
         state.mult += 4.0;
-        crate::jokers::apply_joker_edition(state, card);
+        crate::scorer::apply_joker_edition(state, card);
     }
 }

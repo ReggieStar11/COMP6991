@@ -8,7 +8,7 @@ Stages that are not complete should be left blank (like [ ]).
 
 > [ ] Stage 1 (Basic Scoring)
 > [ ] Stage 2 (Modifiers)
-> [ ] Stage 3 (Easy Jokers)
+> [X] Stage 3 (Easy Jokers)
 > [ ] Stage 4 (Medium Jokers)
 > [ ] Stage 5 (Hard Jokers)
 

@@ -2,8 +2,7 @@
 //! Each Joker is implemented in its own file and implements JokerEffect.
 
 use std::collections::HashMap;
-use crate::scorer::{self, ScoringState};
-use ortalib::{Card, Joker as OrtaJoker, JokerCard, Edition};
+use ortalib::{Joker as OrtaJoker};
 
 pub mod joker;
 pub mod jolly_joker;
@@ -19,15 +18,6 @@ pub mod crafty_joker;
 pub mod abstract_joker;
 
 pub use self::joker::JokerEffect;
-
-pub fn apply_joker_edition(state: &mut ScoringState, card: &JokerCard) {
-    match card.edition {
-        Some(Edition::Foil) => state.chips += 50.0,
-        Some(Edition::Holographic) => state.mult += 10.0,
-        Some(Edition::Polychrome) => state.mult *= 1.5,
-        None => {}
-    }
-}
 
 /// Helper predicates that inspect the played cards using scorer helpers.
 fn contains_pair(cards: &[ortalib::Card]) -> bool {

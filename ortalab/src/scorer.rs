@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use ortalib::{Card, Chips, Mult, PokerHand, Rank, Round, Suit, Enhancement, Edition};
-use crate::jokers;
+use ortalib::{Card, Chips, Mult, PokerHand, Rank, Round, Suit, Enhancement, Edition, JokerCard};
+use crate::jokers::{self, JokerEffect};
 use crate::cards::PlayedCard;
-
 
 #[derive(Debug)]
 pub struct ScoringState {
@@ -23,6 +22,69 @@ impl ScoringState {
             .iter()
             .map(|c| c.rank.rank_value())
             .min_by(|a, b| a.partial_cmp(b).unwrap())
+    }
+}
+
+pub struct ScoringEngine {
+    state: ScoringState,
+    joker_registry: std::collections::HashMap<ortalib::Joker, Box<dyn JokerEffect>>,
+    best_poker_hand: (PokerHand, Vec<Card>),
+}
+
+impl ScoringEngine {
+    pub fn new(round: Round) -> Self {
+        let state = ScoringState::new(round);
+        let joker_registry = jokers::build_registry();
+        let best_poker_hand = detect_best_hand(&state.round.cards_played);
+        Self { state, joker_registry, best_poker_hand }
+    }
+
+    pub fn score(mut self) -> (Chips, Mult) {
+        let (base_chips, base_mult) = self.best_poker_hand.0.hand_value();
+        self.state.chips += base_chips;
+        self.state.mult *= base_mult;
+
+        // Step 2: Score each card
+        let scoring_cards = self.best_poker_hand.1.clone();
+        for pc_inner in scoring_cards.into_iter() {
+            let mut pc = PlayedCard::new(pc_inner);
+            self.score_played_card(&mut pc);
+        }
+
+        // Step 3: Held in hand abilities
+        let held_wrapped: Vec<PlayedCard> =
+            self.state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
+        for held in held_wrapped.iter() {
+            if held.is_steel() {
+                self.state.mult *= 1.5;
+            }
+        }
+
+        // Step 4: Joker Editions and "independent" Jokers activate.
+        let jokers_snapshot = self.state.round.jokers.clone();
+        for jc in jokers_snapshot.iter() {
+            if let Some(effect) = self.joker_registry.get(&jc.joker) {
+                effect.apply_independent(&mut self.state, jc);
+            }
+        }
+
+        (self.state.chips, self.state.mult)
+    }
+
+    fn score_played_card(&mut self, pc: &mut PlayedCard) {
+        self.state.chips += pc.base_chips();
+        match pc.inner.enhancement {
+            Some(Enhancement::Bonus) => self.state.chips += 30.0,
+            Some(Enhancement::Mult) => self.state.mult += 4.0,
+            Some(Enhancement::Glass) => self.state.mult *= 2.0,
+            _ => {}
+        }
+        match pc.inner.edition {
+            Some(Edition::Foil) => self.state.chips += 50.0,
+            Some(Edition::Holographic) => self.state.mult += 10.0,
+            Some(Edition::Polychrome) => self.state.mult *= 1.5,
+            _ => {}
+        }
     }
 }
 
@@ -85,7 +147,7 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
 
     let all_same_suit = is_flush_with_wild(cards);
     let find_group_by_size = |size: usize| -> Option<Vec<Card>> {
-        rank_groups.values().find(|v| v.len() == size).map(|v| v.clone())
+        rank_groups.values().find(|v| v.len() == size).cloned()
     };
 
     if cards.len() == 5 {
@@ -149,46 +211,16 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
     (PokerHand::HighCard, Vec::new())
 }
 
+pub fn apply_joker_edition(state: &mut ScoringState, card: &JokerCard) {
+    match card.edition {
+        Some(Edition::Foil) => state.chips += 50.0,
+        Some(Edition::Holographic) => state.mult += 10.0,
+        Some(Edition::Polychrome) => state.mult *= 1.5,
+        None => {}
+    }
+}
+
 pub fn score(round: Round) -> (Chips, Mult) {
-    let mut state = ScoringState::new(round);
-    let registry = jokers::build_registry();
-
-    let (hand, scoring_cards) = detect_best_hand(&state.round.cards_played);
-    let (base_chips, base_mult) = hand.hand_value();
-    state.chips += base_chips;
-    state.mult *= base_mult;
-
-    let jokers_snapshot = state.round.jokers.clone();
-    for jc in jokers_snapshot.iter() {
-        if let Some(effect) = registry.get(&jc.joker) {
-            effect.apply_independent(&mut state, jc);
-        }
-    }
-
-    let scoring_wrapped: Vec<PlayedCard> = scoring_cards.into_iter().map(PlayedCard::new).collect();
-    for pc in scoring_wrapped.iter() {
-        state.chips += pc.base_chips();
-        match pc.inner.enhancement {
-            Some(Enhancement::Bonus) => state.chips += 30.0,
-            Some(Enhancement::Mult) => state.mult += 4.0,
-            Some(Enhancement::Glass) => state.mult *= 2.0,
-            _ => {}
-        }
-        match pc.inner.edition {
-            Some(Edition::Foil) => state.chips += 50.0,
-            Some(Edition::Holographic) => state.mult += 10.0,
-            Some(Edition::Polychrome) => state.mult *= 1.5,
-            _ => {}
-        }
-    }
-
-    let held_wrapped: Vec<PlayedCard> =
-        state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
-    for held in held_wrapped.iter() {
-        if held.is_steel() {
-            state.mult *= 1.5;
-        }
-    }
-
-    (state.chips, state.mult)
+    let engine = ScoringEngine::new(round);
+    engine.score()
 }

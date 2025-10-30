@@ -1,12 +1,12 @@
 use crate::scorer::ScoringState;
-use ortalib::JokerCard;
+use ortalib::{JokerCard};
 
 pub struct CleverJoker;
 impl super::JokerEffect for CleverJoker {
     fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard) {
-        if crate::jokers::contains_two_pair(&state.round.cards_played) {
+        if super::contains_two_pair(&state.round.cards_played) {
             state.chips += 80.0;
         }
-        crate::jokers::apply_joker_edition(state, card);
+        crate::scorer::apply_joker_edition(state, card);
     }
 }
