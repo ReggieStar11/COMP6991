@@ -161,7 +161,7 @@ pub fn score(round: Round) -> (Chips, Mult) {
     let jokers_snapshot = state.round.jokers.clone();
     for jc in jokers_snapshot.iter() {
         if let Some(effect) = registry.get(&jc.joker) {
-            effect.apply_independent(&mut state);
+            effect.apply_independent(&mut state, jc);
         }
     }
 

@@ -1,12 +1,11 @@
 use crate::scorer::ScoringState;
+use ortalib::JokerCard;
 
-/// Abstract Joker: +3 Mult for each Joker card in the round (independent)
 pub struct AbstractJoker;
 impl super::JokerEffect for AbstractJoker {
-    fn apply_independent(&self, state: &mut ScoringState) {
+    fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard) {
         let count = state.round.jokers.len() as f64;
-        let bonus = 3.0 * count;
-        state.mult += bonus;
-        state.explain.push(format!("Abstract Joker: +{} Mult ({} jokers present)", bonus, count));
+        state.mult += 3.0 * count;
+        crate::jokers::apply_joker_edition(state, card);
     }
 }

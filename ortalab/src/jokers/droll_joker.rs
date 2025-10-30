@@ -1,12 +1,12 @@
 use crate::scorer::ScoringState;
+use ortalib::JokerCard;
 
-/// Droll Joker: +10 Mult if cards_played contains a Flush (independent)
 pub struct DrollJoker;
 impl super::JokerEffect for DrollJoker {
-    fn apply_independent(&self, state: &mut ScoringState) {
+    fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard) {
         if crate::jokers::contains_flush(&state.round.cards_played) {
             state.mult += 10.0;
-            state.explain.push("Droll Joker: +10 Mult (flush present)".to_string());
         }
+        crate::jokers::apply_joker_edition(state, card);
     }
 }
