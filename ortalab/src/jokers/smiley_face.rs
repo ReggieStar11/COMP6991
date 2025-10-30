@@ -3,7 +3,7 @@ use ortalib::{JokerCard};
 
 pub struct SmileyFace;
 impl super::JokerEffect for SmileyFace {
-    fn apply_on_scored(&self, state: &mut ScoringState, played_card: &crate::cards::PlayedCard, joker_card: &JokerCard) {
+    fn apply_on_scored(&mut self, state: &mut ScoringState, played_card: &crate::cards::PlayedCard, joker_card: &JokerCard) {
         if played_card.inner.rank.is_face() {
             state.mult += 5.0;
         }

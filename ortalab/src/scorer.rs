@@ -108,7 +108,7 @@ impl ScoringEngine {
 
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
-            if let Some(effect) = self.joker_registry.get(&jc.joker) {
+            if let Some(effect) = self.joker_registry.get_mut(&jc.joker) {
                 effect.apply_on_scored(&mut self.state, pc, jc);
             }
         }
