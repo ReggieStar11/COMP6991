@@ -150,20 +150,14 @@ pub fn detect_best_hand(cards: &[Card]) -> (PokerHand, Vec<Card>) {
 }
 
 pub fn score(round: Round) -> (Chips, Mult) {
-    // Build mutable scoring state and joker registry
     let mut state = ScoringState::new(round);
     let registry = jokers::build_registry();
 
-    // Detect best hand (uses raw cards; wild-aware flush detection included)
     let (hand, scoring_cards) = detect_best_hand(&state.round.cards_played);
-
-    // Apply base hand values first
     let (base_chips, base_mult) = hand.hand_value();
     state.chips += base_chips;
     state.mult *= base_mult;
 
-    // Phase 1: independent jokers (apply after base hand values)
-    // iterate over a snapshot to avoid borrowing `state` immutably while we mutate it
     let jokers_snapshot = state.round.jokers.clone();
     for jc in jokers_snapshot.iter() {
         if let Some(effect) = registry.get(&jc.joker) {
@@ -171,52 +165,28 @@ pub fn score(round: Round) -> (Chips, Mult) {
         }
     }
 
-    // Wrap scoring cards so we can use PlayedCard helpers
     let scoring_wrapped: Vec<PlayedCard> = scoring_cards.into_iter().map(PlayedCard::new).collect();
-
-    // Per scoring card (left->right)
-    for (idx, pc) in scoring_wrapped.iter().enumerate() {
-        // base chips using wrapper
+    for pc in scoring_wrapped.iter() {
         state.chips += pc.base_chips();
-
-        // enhancements applied when the card is scored (access via inner)
         match pc.inner.enhancement {
             Some(Enhancement::Bonus) => state.chips += 30.0,
             Some(Enhancement::Mult) => state.mult += 4.0,
             Some(Enhancement::Glass) => state.mult *= 2.0,
-            Some(Enhancement::Wild) => {},
-            Some(Enhancement::Steel) => {},
-            None => {},
+            _ => {}
         }
-
-        // editions (Foil/Holographic/Polychrome)
         match pc.inner.edition {
             Some(Edition::Foil) => state.chips += 50.0,
             Some(Edition::Holographic) => state.mult += 10.0,
             Some(Edition::Polychrome) => state.mult *= 1.5,
-            None => {},
-        }
-
-        // allow jokers to react to this scored card (use snapshot)
-        for jc in jokers_snapshot.iter() {
-            if let Some(effect) = registry.get(&jc.joker) {
-                effect.apply_on_scored(&mut state, idx);
-            }
+            _ => {}
         }
     }
 
-    // Held-in-hand Steel multipliers (left->right)
-    let held_wrapped: Vec<PlayedCard> = state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
-    for (held_idx, held) in held_wrapped.iter().enumerate() {
+    let held_wrapped: Vec<PlayedCard> =
+        state.round.cards_held_in_hand.clone().into_iter().map(PlayedCard::new).collect();
+    for held in held_wrapped.iter() {
         if held.is_steel() {
             state.mult *= 1.5;
-        }
-
-        // allow jokers to react to held cards
-        for jc in jokers_snapshot.iter() {
-            if let Some(effect) = registry.get(&jc.joker) {
-                effect.apply_on_held(&mut state, held_idx);
-            }
         }
     }
 
