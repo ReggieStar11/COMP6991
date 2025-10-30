@@ -16,6 +16,20 @@ pub mod clever_joker;
 pub mod devious_joker;
 pub mod crafty_joker;
 pub mod abstract_joker;
+pub mod raised_fist;
+pub mod blackboard;
+pub mod baron;
+pub mod greedy_joker;
+pub mod lusty_joker;
+pub mod wrathful_joker;
+pub mod gluttonous_joker;
+pub mod fibonacci;
+pub mod scary_face;
+pub mod even_steven;
+pub mod odd_todd;
+pub mod photograph;
+pub mod smiley_face;
+pub mod flower_pot;
 
 pub use self::joker::JokerEffect;
 
@@ -58,6 +72,20 @@ pub fn build_registry() -> HashMap<OrtaJoker, Box<dyn JokerEffect>> {
     m.insert(J::DeviousJoker, Box::new(devious_joker::DeviousJoker {}));
     m.insert(J::CraftyJoker, Box::new(crafty_joker::CraftyJoker {}));
     m.insert(J::AbstractJoker, Box::new(abstract_joker::AbstractJoker {}));
+    m.insert(J::RaisedFist, Box::new(raised_fist::RaisedFist {}));
+    m.insert(J::Blackboard, Box::new(blackboard::Blackboard {}));
+    m.insert(J::Baron, Box::new(baron::Baron {}));
+    m.insert(J::GreedyJoker, Box::new(greedy_joker::GreedyJoker {}));
+    m.insert(J::LustyJoker, Box::new(lusty_joker::LustyJoker {}));
+    m.insert(J::WrathfulJoker, Box::new(wrathful_joker::WrathfulJoker {}));
+    m.insert(J::GluttonousJoker, Box::new(gluttonous_joker::GluttonousJoker {}));
+    m.insert(J::Fibonacci, Box::new(fibonacci::Fibonacci {}));
+    m.insert(J::ScaryFace, Box::new(scary_face::ScaryFace {}));
+    m.insert(J::EvenSteven, Box::new(even_steven::EvenSteven {}));
+    m.insert(J::OddTodd, Box::new(odd_todd::OddTodd {}));
+    m.insert(J::Photograph, Box::new(photograph::Photograph { activated: false }));
+    m.insert(J::SmileyFace, Box::new(smiley_face::SmileyFace {}));
+    m.insert(J::FlowerPot, Box::new(flower_pot::FlowerPot {}));
 
     m
 }

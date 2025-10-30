@@ -23,6 +23,20 @@ impl ScoringState {
             .map(|c| c.rank.rank_value())
             .min_by(|a, b| a.partial_cmp(b).unwrap())
     }
+
+    pub fn find_lowest_rightmost_held_card(&self) -> Option<PlayedCard> {
+        self.round.cards_held_in_hand
+            .iter()
+            .enumerate()
+            .map(|(idx, card)| (PlayedCard::new(*card), idx))
+            .min_by(|(pc1, idx1), (pc2, idx2)| {
+                pc1.inner.rank.rank_value()
+                    .partial_cmp(&pc2.inner.rank.rank_value())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| idx2.cmp(idx1)) // Rightmost in case of tie
+            })
+            .map(|(pc, _)| pc)
+    }
 }
 
 pub struct ScoringEngine {
@@ -58,13 +72,19 @@ impl ScoringEngine {
             if held.is_steel() {
                 self.state.mult *= 1.5;
             }
+            let jokers_snapshot = self.state.round.jokers.clone();
+            for jc in jokers_snapshot.iter() {
+                if let Some(effect) = self.joker_registry.get(&jc.joker) {
+                    effect.apply_on_held(&mut self.state, held, jc);
+                }
+            }
         }
 
         // Step 4: Joker Editions and "independent" Jokers activate.
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
             if let Some(effect) = self.joker_registry.get(&jc.joker) {
-                effect.apply_independent(&mut self.state, jc);
+                effect.apply_independent(&mut self.state, jc, &self.best_poker_hand);
             }
         }
 
@@ -84,6 +104,13 @@ impl ScoringEngine {
             Some(Edition::Holographic) => self.state.mult += 10.0,
             Some(Edition::Polychrome) => self.state.mult *= 1.5,
             _ => {}
+        }
+
+        let jokers_snapshot = self.state.round.jokers.clone();
+        for jc in jokers_snapshot.iter() {
+            if let Some(effect) = self.joker_registry.get(&jc.joker) {
+                effect.apply_on_scored(&mut self.state, pc, jc);
+            }
         }
     }
 }

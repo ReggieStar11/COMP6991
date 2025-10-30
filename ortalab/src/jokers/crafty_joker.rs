@@ -1,9 +1,9 @@
 use crate::scorer::ScoringState;
-use ortalib::{JokerCard};
+use ortalib::JokerCard;
 
 pub struct CraftyJoker;
 impl super::JokerEffect for CraftyJoker {
-    fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard) {
+    fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard, _best_poker_hand: &(ortalib::PokerHand, Vec<ortalib::Card>)) {
         if super::contains_flush(&state.round.cards_played) {
             state.chips += 80.0;
         }
