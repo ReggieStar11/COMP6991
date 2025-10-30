@@ -161,13 +161,13 @@ impl ScoringEngine {
             Some(Enhancement::Bonus) => self.state.chips += 30.0,
             Some(Enhancement::Mult) => self.state.mult += 4.0,
             Some(Enhancement::Glass) => self.state.mult *= 2.0,
-            _ => {}
+            _ => {},
         }
         match pc.inner.edition {
             Some(Edition::Foil) => self.state.chips += 50.0,
             Some(Edition::Holographic) => self.state.mult += 10.0,
             Some(Edition::Polychrome) => self.state.mult *= 1.5,
-            _ => {}
+            _ => {},
         }
 
         // Pareidolia check: all cards are considered face cards
@@ -235,31 +235,18 @@ pub fn is_straight_with_flags(
     shortcut_active: bool,
 ) -> bool {
     let min_len = if four_fingers_active { 4 } else { 5 };
-    if cards.len() < min_len {
-        return false;
-    }
+    if cards.len() < min_len { return false; }
 
     let mut ranks: Vec<Rank> = cards.iter().map(|c| c.rank).collect();
     ranks.sort();
     ranks.dedup();
-    if ranks.len() < min_len {
-        return false;
-    }
+    if ranks.len() < min_len { return false; }
 
     fn rank_to_val(r: Rank) -> u8 {
         match r {
-            Rank::Two => 2,
-            Rank::Three => 3,
-            Rank::Four => 4,
-            Rank::Five => 5,
-            Rank::Six => 6,
-            Rank::Seven => 7,
-            Rank::Eight => 8,
-            Rank::Nine => 9,
-            Rank::Ten => 10,
-            Rank::Jack => 11,
-            Rank::Queen => 12,
-            Rank::King => 13,
+            Rank::Two => 2, Rank::Three => 3, Rank::Four => 4, Rank::Five => 5,
+            Rank::Six => 6, Rank::Seven => 7, Rank::Eight => 8, Rank::Nine => 9,
+            Rank::Ten => 10, Rank::Jack => 11, Rank::Queen => 12, Rank::King => 13,
             Rank::Ace => 14,
         }
     }
@@ -284,9 +271,7 @@ pub fn is_straight_with_flags(
                     sub_slice[j + 1] - sub_slice[j] == 1
                 }
             });
-            if is_sequential {
-                return true;
-            }
+            if is_sequential { return true; }
         }
         false
     };
@@ -404,7 +389,7 @@ pub fn apply_joker_edition(state: &mut ScoringState, card: &JokerCard) {
         Some(Edition::Foil) => state.chips += 50.0,
         Some(Edition::Holographic) => state.mult += 10.0,
         Some(Edition::Polychrome) => state.mult *= 1.5,
-        None => {}
+        None => {},
     }
 }
 
