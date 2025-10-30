@@ -3,7 +3,7 @@ use ortalib::{JokerCard, Suit, Enhancement};
 
 pub struct FlowerPot;
 impl super::JokerEffect for FlowerPot {
-    fn apply_independent(&self, state: &mut ScoringState, card: &JokerCard, best_poker_hand: &(ortalib::PokerHand, Vec<ortalib::Card>)) {
+    fn apply_independent(&self, state: &mut ScoringState, _card: &JokerCard, best_poker_hand: &(ortalib::PokerHand, Vec<ortalib::Card>)) {
         let mut has_hearts = false;
         let mut has_diamonds = false;
         let mut has_clubs = false;
@@ -27,6 +27,5 @@ impl super::JokerEffect for FlowerPot {
         if has_hearts && has_diamonds && has_clubs && has_spades {
             state.mult *= 3.0;
         }
-        crate::scorer::apply_joker_edition(state, card);
     }
 }
