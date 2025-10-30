@@ -54,6 +54,8 @@ pub struct ScoringEngine {
     four_fingers_active: bool,
     shortcut_active: bool,
     smeared_active: bool,
+    pareidolia_active: bool,
+    splash_active: bool,
 }
 
 impl ScoringEngine {
@@ -64,6 +66,8 @@ impl ScoringEngine {
         let mut four_fingers_active = false;
         let mut shortcut_active = false;
         let mut smeared_active = false;
+        let mut pareidolia_active = false;
+        let mut splash_active = false;
 
         for jc in state.round.jokers.iter() {
             if jc.joker == ortalib::Joker::FourFingers {
@@ -74,6 +78,12 @@ impl ScoringEngine {
             }
             if jc.joker == ortalib::Joker::SmearedJoker {
                 smeared_active = true;
+            }
+            if jc.joker == ortalib::Joker::Pareidolia {
+                pareidolia_active = true;
+            }
+            if jc.joker == ortalib::Joker::Splash {
+                splash_active = true;
             }
             // Other effect jokers will be handled here as well
         }
@@ -91,6 +101,8 @@ impl ScoringEngine {
             four_fingers_active,
             shortcut_active,
             smeared_active,
+            pareidolia_active,
+            splash_active,
         }
     }
 
@@ -100,7 +112,11 @@ impl ScoringEngine {
         self.state.mult *= base_mult;
 
         // Step 2: Score each card
-        let scoring_cards = self.best_poker_hand.1.clone();
+        let scoring_cards = if self.splash_active {
+            self.state.round.cards_played.clone()
+        } else {
+            self.best_poker_hand.1.clone()
+        };
         for pc_inner in scoring_cards.into_iter() {
             let mut pc = PlayedCard::new(pc_inner);
             self.score_played_card(&mut pc);
@@ -130,6 +146,7 @@ impl ScoringEngine {
         // Step 4: Joker Editions and "independent" Jokers activate.
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
+            crate::scorer::apply_joker_edition(&mut self.state, jc);
             if let Some(effect) = self.joker_registry.get(&jc.joker) {
                 effect.apply_independent(&mut self.state, jc, &self.best_poker_hand);
             }
@@ -153,12 +170,30 @@ impl ScoringEngine {
             _ => {}
         }
 
+        // Pareidolia check: all cards are considered face cards
+        let _is_face = pc.inner.rank.is_face() || self.pareidolia_active;
+
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
             if let Some(effect) = self.joker_registry.get_mut(&jc.joker) {
                 effect.apply_on_scored(&mut self.state, pc, jc);
             }
         }
+
+        // Retrigger loop for 'On Scored' abilities
+        for _ in 0..pc.retrigger_count {
+            let retrigger_jokers_snapshot = self.state.round.jokers.clone();
+            for rjc in retrigger_jokers_snapshot.iter() {
+                if let Some(effect) = self.joker_registry.get_mut(&rjc.joker) {
+                    // Retriggers cannot trigger another retrigger
+                    let original_retrigger_count = pc.retrigger_count;
+                    pc.retrigger_count = 0;
+                    effect.apply_on_scored(&mut self.state, pc, rjc);
+                    pc.retrigger_count = original_retrigger_count;
+                }
+            }
+        }
+        self.state.mult *= pc.card_mult;
     }
 }
 
