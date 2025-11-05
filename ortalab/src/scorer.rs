@@ -51,9 +51,6 @@ pub struct ScoringEngine {
     state: ScoringState,
     joker_registry: std::collections::HashMap<ortalib::Joker, Box<dyn JokerEffect>>,
     best_poker_hand: (PokerHand, Vec<Card>),
-    four_fingers_active: bool,
-    shortcut_active: bool,
-    smeared_active: bool,
     pareidolia_active: bool,
     splash_active: bool,
 }
@@ -63,11 +60,11 @@ impl ScoringEngine {
         let state = ScoringState::new(round);
         let joker_registry = jokers::build_registry();
 
+        let mut pareidolia_active = false;
+        let mut splash_active = false;
         let mut four_fingers_active = false;
         let mut shortcut_active = false;
         let mut smeared_active = false;
-        let mut pareidolia_active = false;
-        let mut splash_active = false;
 
         for jc in state.round.jokers.iter() {
             if jc.joker == ortalib::Joker::FourFingers {
@@ -98,9 +95,6 @@ impl ScoringEngine {
             state,
             joker_registry,
             best_poker_hand,
-            four_fingers_active,
-            shortcut_active,
-            smeared_active,
             pareidolia_active,
             splash_active,
         }
@@ -127,8 +121,8 @@ impl ScoringEngine {
             .state
             .round
             .cards_held_in_hand
-            .clone()
-            .into_iter()
+            .iter()
+            .copied()
             .map(PlayedCard::new)
             .collect();
         for held in held_wrapped.iter() {
@@ -161,22 +155,28 @@ impl ScoringEngine {
             Some(Enhancement::Bonus) => self.state.chips += 30.0,
             Some(Enhancement::Mult) => self.state.mult += 4.0,
             Some(Enhancement::Glass) => self.state.mult *= 2.0,
-            _ => {},
+            _ => {}
         }
         match pc.inner.edition {
             Some(Edition::Foil) => self.state.chips += 50.0,
             Some(Edition::Holographic) => self.state.mult += 10.0,
             Some(Edition::Polychrome) => self.state.mult *= 1.5,
-            _ => {},
+            _ => {}
         }
 
         // Pareidolia check: all cards are considered face cards
-        let _is_face = pc.inner.rank.is_face() || self.pareidolia_active;
+        let is_face = pc.inner.rank.is_face() || self.pareidolia_active;
 
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
             if let Some(effect) = self.joker_registry.get_mut(&jc.joker) {
                 effect.apply_on_scored(&mut self.state, pc, jc);
+            }
+            if jc.joker == ortalib::Joker::ScaryFace && is_face {
+                self.state.chips += 30.0;
+            }
+            if jc.joker == ortalib::Joker::SmileyFace && is_face {
+                self.state.mult += 5.0;
             }
         }
 
@@ -195,119 +195,6 @@ impl ScoringEngine {
         }
         self.state.mult *= pc.card_mult;
     }
-}
-
-pub fn group_by_rank(cards: &[Card]) -> HashMap<Rank, Vec<Card>> {
-    let mut m = HashMap::new();
-    for &c in cards {
-        m.entry(c.rank).or_insert_with(Vec::new).push(c);
-    }
-    m
-}
-
-pub fn _group_by_suit(cards: &[Card]) -> HashMap<Suit, Vec<Card>> {
-    let mut m = HashMap::new();
-    for &c in cards {
-        m.entry(c.suit).or_insert_with(Vec::new).push(c);
-    }
-    m
-}
-
-pub fn _is_flush_with_wild(cards: &[Card]) -> bool {
-    if cards.is_empty() {
-        return false;
-    }
-
-    for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
-        if cards
-            .iter()
-            .all(|c| c.suit == s || c.enhancement == Some(Enhancement::Wild))
-        {
-            return true;
-        }
-    }
-    false
-}
-
-pub fn is_straight_with_flags(
-    cards: &[Card],
-    four_fingers_active: bool,
-    shortcut_active: bool,
-) -> bool {
-    let min_len = if four_fingers_active { 4 } else { 5 };
-    if cards.len() < min_len { return false; }
-
-    let mut ranks: Vec<Rank> = cards.iter().map(|c| c.rank).collect();
-    ranks.sort();
-    ranks.dedup();
-    if ranks.len() < min_len { return false; }
-
-    fn rank_to_val(r: Rank) -> u8 {
-        match r {
-            Rank::Two => 2, Rank::Three => 3, Rank::Four => 4, Rank::Five => 5,
-            Rank::Six => 6, Rank::Seven => 7, Rank::Eight => 8, Rank::Nine => 9,
-            Rank::Ten => 10, Rank::Jack => 11, Rank::Queen => 12, Rank::King => 13,
-            Rank::Ace => 14,
-        }
-    }
-
-    let mut vals: Vec<u8> = ranks.iter().map(|r| rank_to_val(*r)).collect();
-    vals.sort();
-
-    // Handle Ace low straight (A, 2, 3, 4, 5)
-    let mut ace_low_vals = vals.clone();
-    if let Some(pos) = ace_low_vals.iter().position(|&v| v == 14) {
-        ace_low_vals[pos] = 1;
-        ace_low_vals.sort();
-    }
-
-    let check_straight = |current_vals: &[u8]| {
-        for i in 0..=current_vals.len() - min_len {
-            let sub_slice = &current_vals[i..i + min_len];
-            let is_sequential = (0..min_len - 1).all(|j| {
-                if shortcut_active {
-                    sub_slice[j + 1] - sub_slice[j] <= 2 && sub_slice[j + 1] - sub_slice[j] >= 1
-                } else {
-                    sub_slice[j + 1] - sub_slice[j] == 1
-                }
-            });
-            if is_sequential { return true; }
-        }
-        false
-    };
-
-    check_straight(&vals) || check_straight(&ace_low_vals)
-}
-
-pub fn is_flush_with_smeared_and_flags(
-    cards: &[Card],
-    four_fingers_active: bool,
-    smeared_active: bool,
-) -> bool {
-    let min_len = if four_fingers_active || smeared_active {
-        4
-    } else {
-        5
-    };
-    if cards.len() < min_len {
-        return false;
-    }
-
-    for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
-        if cards
-            .iter()
-            .filter(|c| {
-                let is_smeared_wild =
-                    smeared_active && (c.suit == Suit::Hearts || c.suit == Suit::Diamonds);
-                c.suit == s || c.enhancement == Some(Enhancement::Wild) || is_smeared_wild
-            })
-            .count()
-            >= min_len
-        {
-            return true;
-        }
-    }
-    false
 }
 
 pub fn detect_best_hand(
@@ -384,12 +271,116 @@ pub fn detect_best_hand(
     (PokerHand::HighCard, Vec::new())
 }
 
+pub fn group_by_rank(cards: &[Card]) -> HashMap<Rank, Vec<Card>> {
+    let mut m = HashMap::new();
+    for &c in cards {
+        m.entry(c.rank).or_insert_with(Vec::new).push(c);
+    }
+    m
+}
+
+pub fn is_straight_with_flags(
+    cards: &[Card],
+    four_fingers_active: bool,
+    shortcut_active: bool,
+) -> bool {
+    let min_len = if four_fingers_active { 4 } else { 5 };
+    if cards.len() < min_len {
+        return false;
+    }
+
+    let mut ranks: Vec<Rank> = cards.iter().map(|c| c.rank).collect();
+    ranks.sort();
+    ranks.dedup();
+    if ranks.len() < min_len {
+        return false;
+    }
+
+    fn rank_to_val(r: Rank) -> u8 {
+        match r {
+            Rank::Two => 2,
+            Rank::Three => 3,
+            Rank::Four => 4,
+            Rank::Five => 5,
+            Rank::Six => 6,
+            Rank::Seven => 7,
+            Rank::Eight => 8,
+            Rank::Nine => 9,
+            Rank::Ten => 10,
+            Rank::Jack => 11,
+            Rank::Queen => 12,
+            Rank::King => 13,
+            Rank::Ace => 14,
+        }
+    }
+
+    let mut vals: Vec<u8> = ranks.iter().map(|r| rank_to_val(*r)).collect();
+    vals.sort();
+
+    // Handle Ace low straight (A, 2, 3, 4, 5)
+    let mut ace_low_vals = vals.clone();
+    if let Some(pos) = ace_low_vals.iter().position(|&v| v == 14) {
+        ace_low_vals[pos] = 1;
+        ace_low_vals.sort();
+    }
+
+    let check_straight = |current_vals: &[u8]| {
+        for i in 0..=current_vals.len() - min_len {
+            let sub_slice = &current_vals[i..i + min_len];
+            let is_sequential = (0..min_len - 1).all(|j| {
+                if shortcut_active {
+                    sub_slice[j + 1] - sub_slice[j] <= 2 && sub_slice[j + 1] - sub_slice[j] >= 1
+                } else {
+                    sub_slice[j + 1] - sub_slice[j] == 1
+                }
+            });
+            if is_sequential {
+                return true;
+            }
+        }
+        false
+    };
+
+    check_straight(&vals) || check_straight(&ace_low_vals)
+}
+
+pub fn is_flush_with_smeared_and_flags(
+    cards: &[Card],
+    four_fingers_active: bool,
+    smeared_active: bool,
+) -> bool {
+    let min_len = if four_fingers_active || smeared_active {
+        4
+    } else {
+        5
+    };
+    if cards.len() < min_len {
+        return false;
+    }
+
+    for &s in &[Suit::Hearts, Suit::Clubs, Suit::Diamonds, Suit::Spades] {
+        if cards
+            .iter()
+            .filter(|c| {
+                let is_smeared_wild =
+                    smeared_active && (c.suit == Suit::Hearts || c.suit == Suit::Diamonds);
+                c.suit == s || c.enhancement == Some(Enhancement::Wild) || is_smeared_wild
+            })
+            .count()
+            >= min_len
+        {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn apply_joker_edition(state: &mut ScoringState, card: &JokerCard) {
     match card.edition {
         Some(Edition::Foil) => state.chips += 50.0,
         Some(Edition::Holographic) => state.mult += 10.0,
         Some(Edition::Polychrome) => state.mult *= 1.5,
-        None => {},
+        None => {}
     }
 }
 

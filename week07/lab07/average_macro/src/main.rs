@@ -1,6 +1,14 @@
-
 // YOUR MACRO HERE
 
+#[macro_export]
+macro_rules! avg {
+    ( $($e:expr),+ $(,)? ) => {{
+        let mut sum = 0;
+        let mut len = 0;
+        $( sum += $e; len += 1; )+
+        sum / len
+    }};
+}
 
 // DO NOT CHANGE
 fn main() {

@@ -6,8 +6,8 @@ Please mark stages that are complete with an [X].
 Stages that are partially complete should be marked with a [?].
 Stages that are not complete should be left blank (like [ ]).
 
-> [ ] Stage 1 (Basic Scoring)
-> [ ] Stage 2 (Modifiers)
+> [X] Stage 1 (Basic Scoring)
+> [X] Stage 2 (Modifiers)
 > [X] Stage 3 (Easy Jokers)
 > [X] Stage 4 (Medium Jokers)
 > [X] Stage 5 (Hard Jokers)
@@ -25,9 +25,13 @@ influenced by this challenge, with specific reference to sections of your code.
 If you completed the "Pull Request" design excellence, please just leave a link
 to your PR.
 
->
->
->
+Current implementation layers scoring via ScoringEngine, which keeps state isolated and 
+makes joker effects easy to plug in through the JokerEffect trait. Stage 4 additions 
+(e.g., Blackboard, Raised Fist) reuse the same flow by extending apply_independent, 
+keeping card-scoring logic in score_played_card. I also centralised edition bonuses 
+in helper functions so both card and joker editions reuse identical logic, reducing 
+duplication. However, Stage 5 retrigger handling showed that pushing too much logic 
+into score_played_card makes chained effects tricky.
 
 ## Design Limitations
 
@@ -35,18 +39,21 @@ If you made any design decisions which you now regret making; but don't to go ba
 let us know here. You can make up your design marks by acknowledging up to 5 things you would do
 differently now.
 
-> - TODO
+Firstly, a few tests rely on cloning state.round.jokers frequently—wrapping 
+this in a iterator would reduce repeated clones.
+
+Secondly, ScoringEngine::score_played_card owns too much responsibility (editions, retriggers, joker hooks)
+splitting into smaller functions would make stage 5 debugging easier.
+
 
 ## Questions to the marker
 
 If you want to let us know something else about your program, put it here!
 (Feel free to leave this blank)
 
-> TODO
-
 ## Other Comments
 
 If you want to let us know something else about your program, put it here!
 (Feel free to leave this blank)
 
-> TODO
+I’m aware some Stage 3/5 fixtures still fail, due to lack of implementation or logic/edge case oversights.
