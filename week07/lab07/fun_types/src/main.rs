@@ -6,7 +6,7 @@ pub enum MyOption {
 
 impl MyOption {
     // TODO - implement map
-    pub fn map<F>(self, mut f: F) -> MyOption
+    pub fn map<F>(self, f: F) -> MyOption
     where
         F: FnOnce(i32) -> i32,
     {
