@@ -85,7 +85,8 @@ impl ScoringEngine {
             if jc.joker == ortalib::Joker::Splash {
                 splash_active = true;
             }
-            // Other effect jokers will be handled here as well
+            // Open for extension (more jokers)
+
         }
 
         let best_poker_hand = detect_best_hand(
@@ -111,7 +112,7 @@ impl ScoringEngine {
         self.state.chips += base_chips;
         self.state.mult *= base_mult;
 
-        // Step 2: Score each card
+        // Score each card
         let scoring_cards = if self.splash_active {
             self.state.round.cards_played.clone()
         } else {
@@ -122,7 +123,7 @@ impl ScoringEngine {
             self.score_played_card(&mut pc);
         }
 
-        // Step 3: Held in hand abilities
+        // Held in hand abilities
         let held_wrapped: Vec<PlayedCard> = self
             .state
             .round
@@ -143,7 +144,7 @@ impl ScoringEngine {
             }
         }
 
-        // Step 4: Joker Editions and "independent" Jokers activate.
+        // Joker Editions and "independent" Jokers activate.
         let jokers_snapshot = self.state.round.jokers.clone();
         for jc in jokers_snapshot.iter() {
             crate::scorer::apply_joker_edition(&mut self.state, jc);
@@ -170,7 +171,7 @@ impl ScoringEngine {
             _ => {},
         }
 
-        // Pareidolia check: all cards are considered face cards
+        // Pareidolia check
         let _is_face = pc.inner.rank.is_face() || self.pareidolia_active;
 
         let jokers_snapshot = self.state.round.jokers.clone();

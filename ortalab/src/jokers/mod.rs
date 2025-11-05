@@ -41,7 +41,7 @@ pub mod zany_joker;
 
 pub use self::joker::JokerEffect;
 
-/// Helper predicates that inspect the played cards using scorer helpers.
+/// Helpers inspect the played cards using scorer helpers.
 fn contains_pair(cards: &[ortalib::Card]) -> bool {
     crate::scorer::group_by_rank(cards)
         .values()
@@ -78,7 +78,6 @@ pub fn build_registry() -> HashMap<OrtaJoker, Box<dyn JokerEffect>> {
     use OrtaJoker as J;
     let mut m: HashMap<OrtaJoker, Box<dyn JokerEffect>> = HashMap::new();
 
-    // Register each easy joker (ensure ortalib::Joker has these variants in your version)
     m.insert(J::Joker, Box::new(joker::Joker {}));
     m.insert(J::JollyJoker, Box::new(jolly_joker::JollyJoker {}));
     m.insert(J::ZanyJoker, Box::new(zany_joker::ZanyJoker {}));
@@ -97,18 +96,12 @@ pub fn build_registry() -> HashMap<OrtaJoker, Box<dyn JokerEffect>> {
     m.insert(J::GreedyJoker, Box::new(greedy_joker::GreedyJoker {}));
     m.insert(J::LustyJoker, Box::new(lusty_joker::LustyJoker {}));
     m.insert(J::WrathfulJoker, Box::new(wrathful_joker::WrathfulJoker {}));
-    m.insert(
-        J::GluttonousJoker,
-        Box::new(gluttonous_joker::GluttonousJoker {}),
-    );
+    m.insert(J::GluttonousJoker,Box::new(gluttonous_joker::GluttonousJoker {}));
     m.insert(J::Fibonacci, Box::new(fibonacci::Fibonacci {}));
     m.insert(J::ScaryFace, Box::new(scary_face::ScaryFace {}));
     m.insert(J::EvenSteven, Box::new(even_steven::EvenSteven {}));
     m.insert(J::OddTodd, Box::new(odd_todd::OddTodd {}));
-    m.insert(
-        J::Photograph,
-        Box::new(photograph::Photograph { activated: false }),
-    );
+    m.insert(J::Photograph, Box::new(photograph::Photograph { activated: false }));
     m.insert(J::SmileyFace, Box::new(smiley_face::SmileyFace {}));
     m.insert(J::FlowerPot, Box::new(flower_pot::FlowerPot {}));
     m.insert(J::FourFingers, Box::new(four_fingers::FourFingers {}));
@@ -116,12 +109,8 @@ pub fn build_registry() -> HashMap<OrtaJoker, Box<dyn JokerEffect>> {
     m.insert(J::Mime, Box::new(mime::Mime {}));
     m.insert(J::Pareidolia, Box::new(pareidolia::Pareidolia {}));
     m.insert(J::Splash, Box::new(splash::Splash {}));
-    m.insert(
-        J::SockAndBuskin,
-        Box::new(sock_and_buskin::SockAndBuskin {}),
-    );
+    m.insert(J::SockAndBuskin, Box::new(sock_and_buskin::SockAndBuskin {}),);
     m.insert(J::SmearedJoker, Box::new(smeared_joker::SmearedJoker {}));
     m.insert(J::Blueprint, Box::new(blueprint::Blueprint {}));
-
     m
 }

@@ -9,7 +9,6 @@ impl super::JokerEffect for FourFingers {
         _card: &JokerCard,
         _best_poker_hand: &(ortalib::PokerHand, Vec<ortalib::Card>),
     ) {
-        // This joker modifies how hands are detected, so its flags are set in ScoringEngine::new.
-        // This method remains empty.
+        
     }
 }
