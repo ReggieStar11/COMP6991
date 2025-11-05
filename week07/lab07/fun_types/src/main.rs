@@ -6,6 +6,15 @@ pub enum MyOption {
 
 impl MyOption {
     // TODO - implement map
+    pub fn map<F>(self, mut f: F) -> MyOption
+    where
+        F: FnOnce(i32) -> i32,
+    {
+        match self {
+            MyOption::Some(v) => MyOption::Some(f(v)),
+            MyOption::None => MyOption::None,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -15,7 +24,24 @@ pub struct MyVec {
 
 impl MyVec {
     // TODO - implement for_each
+    pub fn for_each<F>(&self, mut f: F)
+    where
+        F: FnMut(i32),
+    {
+        for &item in &self.items {
+            f(item);
+        }
+    }
     // TODO - implement map
+    pub fn map<F>(&mut self, mut f: F)
+    where
+        F: FnMut(i32) -> i32,
+    {
+        for item in &mut self.items {
+            let old = *item;
+            *item = f(old);
+        }
+    }
 }
 
 fn main() {
