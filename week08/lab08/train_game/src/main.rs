@@ -30,11 +30,27 @@ fn main() {
     // first, split up the digits_operators into 6 vecs
     // using the chunks method
 
-    for (digits, operators) in digits_operators {
-        // go through one combination of
-        // operators and see if it works
-        let _ = calculate(digits, operators);
-    }
+    let num_chunks = 6usize;
+    let chunk_size = (digits_operators.len() + num_chunks - 1) / num_chunks; // ceil division
+    let chunks: Vec<Vec<(Vec<i32>, Vec<char>)>> = digits_operators
+        .chunks(chunk_size)
+        .map(|c| c.to_vec())
+        .collect();
+
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(chunks.len());
+        for chunk in chunks {
+            handles.push(scope.spawn(move || {
+                for (digits, operators) in chunk {
+                    let _ = calculate(digits, operators);
+                }
+            }));
+        }
+
+        for handle in handles {
+            let _ = handle.join();
+        }
+    });
 }
 
 // DO NOT MODIFY
