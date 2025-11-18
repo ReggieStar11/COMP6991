@@ -1,84 +1,60 @@
 use itertools::Itertools;
-use std::sync::mpsc;
-
+mod test;
 fn main() {
-    let input_number = std::env::args().nth(1).expect("provide five-digit number");
-    let _n = input_number.parse::<u32>().expect("invalid number");
-
-    let digits_vec: Vec<i32> = input_number
-        .chars()
-        .map(|x| x.to_digit(10).expect("not a digit") as i32)
-        .collect();
-
-    if digits_vec.len() != 5 {
-        panic!("expected a five-digit input");
+    // take number from commandline arg
+    // number is guaranteed to be five digits
+    let input_number = std::env::args().nth(1).unwrap().parse::<u32>().unwrap();
+    if !(10000..=99999).contains(&input_number) {
+        panic!("Number must be five digits");
     }
 
     let operators = vec!['+', '-', '*', '/'];
 
-    // generate all permutations of the 5 digits and all permutations of 4 operators
-    let digits_perms: Vec<Vec<i32>> = digits_vec
-        .iter()
+    // let's get a massive iterator,
+    // over every arrangement of
+    // digits and every arrangement of operators
+    let digits_operators: Vec<(Vec<i32>, Vec<char>)> = std::env::args()
+        .nth(1)
+        .unwrap()
+        .chars()
+        .map(|x| x.to_digit(10).unwrap() as i32)
         .permutations(5)
-        .map(|p| p.into_iter().copied().collect::<Vec<_>>())
-        .collect();
-
-    let ops_perms: Vec<Vec<char>> = operators
-        .iter()
-        .permutations(4)
-        .map(|p| p.into_iter().copied().collect::<Vec<_>>())
-        .collect();
-
-    // cartesian product of digit permutations and operator permutations
-    let digits_operators: Vec<(Vec<i32>, Vec<char>)> = digits_perms
         .into_iter()
-        .cartesian_product(ops_perms.into_iter())
+        .cartesian_product(operators.into_iter().permutations(4).into_iter())
         .collect();
 
-    println!(
-        "There are {} potential combinations",
-        digits_operators.len()
-    );
+    let length = digits_operators.len();
+    println!("There are {length} potential combinations",);
+
+    // you only need to change code from here onwards
+    // first, split up the digits_operators into 6 vecs
+    // using the chunks method
 
     let num_chunks = 6usize;
-    let chunk_size = (digits_operators.len() + num_chunks - 1) / num_chunks;
+    let chunk_size = (digits_operators.len() + num_chunks - 1) / num_chunks; // ceil division
     let chunks: Vec<Vec<(Vec<i32>, Vec<char>)>> = digits_operators
         .chunks(chunk_size)
         .map(|c| c.to_vec())
         .collect();
 
-    let (tx, rx) = mpsc::channel::<(usize, usize)>();
-
     std::thread::scope(|scope| {
-        for (i, chunk) in chunks.into_iter().enumerate() {
-            let tx = tx.clone();
-            scope.spawn(move || {
-                let mut local_count: usize = 0;
+        let mut handles = Vec::with_capacity(chunks.len());
+        for chunk in chunks {
+            handles.push(scope.spawn(move || {
                 for (digits, operators) in chunk {
-                    if calculate(digits, operators) {
-                        local_count += 1;
-                    }
+                    let _ = calculate(digits, operators);
                 }
-                let _ = tx.send((i, local_count));
-            });
+            }));
+        }
+
+        for handle in handles {
+            let _ = handle.join();
         }
     });
-
-    drop(tx);
-
-    let mut total = 0usize;
-    for (id, count) in rx {
-        println!("Thread {} found {} combinations", id, count);
-        total += count;
-    }
-    println!("Total: {}", total);
 }
 
-fn calculate(digits: Vec<i32>, operators: Vec<char>) -> bool {
-    if digits.len() != 5 || operators.len() != 4 {
-        return false;
-    }
-
+// DO NOT MODIFY
+fn calculate(digits: Vec<i32>, operators: Vec<char>) -> Result<(), ()> {
     let num1 = digits[0];
     let num2 = digits[1];
     let num3 = digits[2];
@@ -90,33 +66,28 @@ fn calculate(digits: Vec<i32>, operators: Vec<char>) -> bool {
     let op3 = operators[2];
     let op4 = operators[3];
 
-    if let Ok(mut result) = operate(num1, num2, op1) {
-        if let Ok(r2) = operate(result, num3, op2) {
-            result = r2;
-            if let Ok(r3) = operate(result, num4, op3) {
-                result = r3;
-                if let Ok(r4) = operate(result, num5, op4) {
-                    result = r4;
-                    if result == 10 {
-                        println!(
-                            "{} {} {} {} {} {} {} {} {} = 10",
-                            num1, op1, num2, op2, num3, op3, num4, op4, num5
-                        );
-                        return true;
-                    }
-                }
-            }
-        }
+    let result = operate(num1, num2, op1)?;
+    let result = operate(result, num3, op2)?;
+    let result = operate(result, num4, op3)?;
+    let result = operate(result, num5, op4)?;
+
+    if result == 10 {
+        println!(
+            "{} {} {} {} {} {} {} {} {} = 10",
+            num1, op1, num2, op2, num3, op3, num4, op4, num5
+        );
     }
-    false
+
+    Ok(())
 }
 
+// DO NOT MODIFY
 fn operate(num1: i32, num2: i32, op: char) -> Result<i32, ()> {
     match op {
         '+' => Ok(num1 + num2),
         '-' => Ok(num1 - num2),
         '*' => Ok(num1 * num2),
         '/' => num1.checked_div(num2).ok_or(()),
-        _ => Err(()),
+        _ => panic!("Invalid operation"),
     }
 }
