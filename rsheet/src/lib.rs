@@ -7,6 +7,8 @@ use rsheet_lib::connect::{
 };
 use rsheet_lib::replies::Reply;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use std::error::Error;
 
@@ -16,145 +18,173 @@ pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error>>
 where
     M: Manager,
 {
-    let mut spreadsheet = Spreadsheet::new();
-    // This initiates a single client connection, and reads and writes messages
-    // indefinitely.
-    let (mut recv, mut send) = match manager.accept_new_connection() {
-        Connection::NewConnection { reader, writer } => (reader, writer),
-        Connection::NoMoreConnections => {
-            // There are no more new connections to accept.
-            return Ok(());
-        }
-    };
+    let spreadsheet = Arc::new(Mutex::new(Spreadsheet::new()));
+    let mut join_handles = Vec::new();
+
     loop {
-        info!("Just got message");
-        match recv.read_message() {
-            ReadMessageResult::Message(msg) => {
-                let command_result = msg.parse::<Command>();
+        let connection = manager.accept_new_connection();
+        match connection {
+            Connection::NewConnection { reader, writer } => {
+                let spreadsheet_clone = Arc::clone(&spreadsheet);
+                let handle = thread::spawn(move || {
+                    let (mut recv, mut send) = (reader, writer);
+                    loop {
+                        info!("Just got message");
+                        match recv.read_message() {
+                            ReadMessageResult::Message(msg) => {
+                                let command_result = msg.parse::<Command>();
 
-                match command_result {
-                    Ok(command) => {
-                        match command {
-                            Command::Get { cell_identifier } => {
-                                let cell_id_string = format!(
-                                    "{}{}",
-                                    column_number_to_name(cell_identifier.col),
-                                    cell_identifier.row + 1
-                                );
-                                let value = spreadsheet.get_cell(&cell_id_string);
-                                let reply = Reply::Value(cell_id_string, value);
-                                match send.write_message(reply) {
-                                    WriteMessageResult::Ok => { /* Message successfully sent, continue. */
-                                    }
-                                    WriteMessageResult::ConnectionClosed => {
-                                        break;
-                                    }
-                                    WriteMessageResult::Err(e) => {
-                                        return Err(Box::new(e));
-                                    }
-                                }
-                            }
-                            Command::Set {
-                                cell_identifier,
-                                cell_expr,
-                            } => {
-                                // For Stage 1, we don't have dependencies, so no variables are passed.
-                                let new_cell_expr = CellExpr::new(&cell_expr);
-
-                                let mut variables_map: HashMap<String, CellArgument> =
-                                    HashMap::new();
-
-                                for var_name in new_cell_expr.find_variable_names() {
-                                    let (start_id, end_id) = match parse_cell_range(&var_name) {
-                                        Ok(ids) => ids,
-                                        Err(e) => {
-                                            // If a variable name itself is invalid, store an error for it
-                                            variables_map.insert(
-                                                var_name,
-                                                CellArgument::Value(CellValue::Error(e)),
-                                            );
-                                            continue;
-                                        }
-                                    };
-
-                                    if start_id == end_id {
-                                        // Scalar variable
-                                        let cell_id_string = format!(
-                                            "{}{}",
-                                            column_number_to_name(start_id.col),
-                                            start_id.row + 1
-                                        );
-                                        let value = spreadsheet.get_cell(&cell_id_string);
-                                        variables_map.insert(var_name, CellArgument::Value(value));
-                                    } else {
-                                        // Vector or Matrix variable
-                                        let mut matrix = Vec::new();
-                                        for row in start_id.row..=end_id.row {
-                                            let mut row_vec = Vec::new();
-                                            for col in start_id.col..=end_id.col {
+                                match command_result {
+                                    Ok(command) => {
+                                        let mut spreadsheet_guard =
+                                            spreadsheet_clone.lock().unwrap();
+                                        match command {
+                                            Command::Get { cell_identifier } => {
                                                 let cell_id_string = format!(
                                                     "{}{}",
-                                                    column_number_to_name(col),
-                                                    row + 1
+                                                    column_number_to_name(cell_identifier.col),
+                                                    cell_identifier.row + 1
                                                 );
-                                                let value = spreadsheet.get_cell(&cell_id_string);
-                                                row_vec.push(value);
+                                                let value =
+                                                    spreadsheet_guard.get_cell(&cell_id_string);
+                                                drop(spreadsheet_guard); // Release lock early
+                                                let reply = Reply::Value(cell_id_string, value);
+                                                match send.write_message(reply) {
+                                                    WriteMessageResult::Ok => { /* Message successfully sent, continue. */
+                                                    }
+                                                    WriteMessageResult::ConnectionClosed => {
+                                                        break;
+                                                    }
+                                                    WriteMessageResult::Err(e) => {
+                                                        return Err(Box::new(e));
+                                                    }
+                                                }
                                             }
-                                            matrix.push(row_vec);
-                                        }
+                                            Command::Set {
+                                                cell_identifier,
+                                                cell_expr,
+                                            } => {
+                                                let new_cell_expr = CellExpr::new(&cell_expr);
 
-                                        if start_id.col == end_id.col || start_id.row == end_id.row
-                                        {
-                                            // It's a vector (single column or single row)
-                                            // Flatten the matrix into a single vector
-                                            let vector = matrix.into_iter().flatten().collect();
-                                            variables_map
-                                                .insert(var_name, CellArgument::Vector(vector));
-                                        } else {
-                                            // It's a matrix
-                                            variables_map
-                                                .insert(var_name, CellArgument::Matrix(matrix));
+                                                let mut variables_map: HashMap<
+                                                    String,
+                                                    CellArgument,
+                                                > = HashMap::new();
+
+                                                for var_name in new_cell_expr.find_variable_names()
+                                                {
+                                                    let (start_id, end_id) =
+                                                        match parse_cell_range(&var_name) {
+                                                            Ok(ids) => ids,
+                                                            Err(e) => {
+                                                                variables_map.insert(
+                                                                    var_name,
+                                                                    CellArgument::Value(
+                                                                        CellValue::Error(e),
+                                                                    ),
+                                                                );
+                                                                continue;
+                                                            }
+                                                        };
+
+                                                    if start_id == end_id {
+                                                        let cell_id_string = format!(
+                                                            "{}{}",
+                                                            column_number_to_name(start_id.col),
+                                                            start_id.row + 1
+                                                        );
+                                                        let value = spreadsheet_guard
+                                                            .get_cell(&cell_id_string);
+                                                        variables_map.insert(
+                                                            var_name,
+                                                            CellArgument::Value(value),
+                                                        );
+                                                    } else {
+                                                        let mut matrix = Vec::new();
+                                                        for row in start_id.row..=end_id.row {
+                                                            let mut row_vec = Vec::new();
+                                                            for col in start_id.col..=end_id.col {
+                                                                let cell_id_string = format!(
+                                                                    "{}{}",
+                                                                    column_number_to_name(col),
+                                                                    row + 1
+                                                                );
+                                                                let value = spreadsheet_guard
+                                                                    .get_cell(&cell_id_string);
+                                                                row_vec.push(value);
+                                                            }
+                                                            matrix.push(row_vec);
+                                                        }
+
+                                                        if start_id.col == end_id.col
+                                                            || start_id.row == end_id.row
+                                                        {
+                                                            let vector = matrix
+                                                                .into_iter()
+                                                                .flatten()
+                                                                .collect();
+                                                            variables_map.insert(
+                                                                var_name,
+                                                                CellArgument::Vector(vector),
+                                                            );
+                                                        } else {
+                                                            variables_map.insert(
+                                                                var_name,
+                                                                CellArgument::Matrix(matrix),
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                let evaluated_value =
+                                                    new_cell_expr.evaluate(&variables_map);
+
+                                                let cell_id_string = format!(
+                                                    "{}{}",
+                                                    column_number_to_name(cell_identifier.col),
+                                                    cell_identifier.row + 1
+                                                );
+                                                spreadsheet_guard
+                                                    .set_cell(cell_id_string, evaluated_value);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let reply = Reply::Error(e.to_string());
+                                        match send.write_message(reply) {
+                                            WriteMessageResult::Ok => { /* Message successfully sent, continue. */
+                                            }
+                                            WriteMessageResult::ConnectionClosed => {
+                                                break;
+                                            }
+                                            WriteMessageResult::Err(e) => {
+                                                return Err(Box::new(e));
+                                            }
                                         }
                                     }
                                 }
-
-                                let evaluated_value = new_cell_expr.evaluate(&variables_map);
-
-                                let cell_id_string = format!(
-                                    "{}{}",
-                                    column_number_to_name(cell_identifier.col),
-                                    cell_identifier.row + 1
-                                );
-                                spreadsheet.set_cell(cell_id_string, evaluated_value);
-                                // Successful set command has no output, so we don't send a reply.
                             }
-                        }
-                    }
-                    Err(e) => {
-                        let reply = Reply::Error(e.to_string());
-                        match send.write_message(reply) {
-                            WriteMessageResult::Ok => { /* Message successfully sent, continue. */ }
-                            WriteMessageResult::ConnectionClosed => {
+                            ReadMessageResult::ConnectionClosed => {
                                 break;
                             }
-                            WriteMessageResult::Err(e) => {
+                            ReadMessageResult::Err(e) => {
                                 return Err(Box::new(e));
                             }
                         }
                     }
-                }
+                    Ok(())
+                });
+                join_handles.push(handle);
             }
-            ReadMessageResult::ConnectionClosed => {
-                // The connection was closed. This is not an error, but
-                // should terminate this connection.
+            Connection::NoMoreConnections => {
                 break;
-            }
-            ReadMessageResult::Err(e) => {
-                // An unexpected error was encountered.
-                return Err(Box::new(e));
             }
         }
     }
+
+    for handle in join_handles {
+        handle.join().unwrap()?;
+    }
+
     Ok(())
 }
 
