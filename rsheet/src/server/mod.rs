@@ -1,5 +1,5 @@
-mod parsing;
+mod commands;
+mod connection;
 mod server;
-mod spreadsheet;
 
 pub use server::start_server;
