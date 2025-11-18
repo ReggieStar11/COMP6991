@@ -1,5 +1,5 @@
 use log::info;
-use rsheet_lib::cell_expr::{CellArgument, CellExpr, CellExprEvalError};
+use rsheet_lib::cell_expr::{CellArgument, CellExpr};
 use rsheet_lib::cell_value::CellValue;
 use rsheet_lib::cells::column_number_to_name;
 use rsheet_lib::command::{CellIdentifier, Command};
@@ -166,7 +166,7 @@ fn parse_cell_range(s: &str) -> Result<(CellIdentifier, CellIdentifier), String>
     }
 }
 
-pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error>>
+pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error + Send + Sync>>
 where
     M: Manager,
 {
