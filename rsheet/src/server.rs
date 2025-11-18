@@ -16,8 +16,9 @@ where
 
     // Spawn the single worker thread
     let worker_spreadsheet_clone = Arc::clone(&spreadsheet);
+    let worker_sender = sender.clone(); // Clone sender for worker thread to notify its own dependents
     let worker_handle =
-        thread::spawn(move || run_worker_thread(worker_spreadsheet_clone, receiver));
+        thread::spawn(move || run_worker_thread(worker_spreadsheet_clone, receiver, worker_sender));
 
     let mut join_handles = Vec::new();
     join_handles.push(worker_handle);

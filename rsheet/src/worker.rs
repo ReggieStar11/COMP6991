@@ -12,6 +12,7 @@ use crate::spreadsheet::Spreadsheet;
 pub fn run_worker_thread(
     spreadsheet: Arc<Mutex<Spreadsheet>>,
     receiver: std::sync::mpsc::Receiver<(String, u64)>,
+    sender: std::sync::mpsc::Sender<(String, u64)>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     for (cell_id_to_recalculate, triggering_version) in receiver {
         info!(
@@ -85,6 +86,22 @@ pub fn run_worker_thread(
                 evaluated_value,
                 new_version_for_this_recalculation,
             );
+
+            // After recalculating, notify this cell's dependents to recalculate (Stage 5: multi-layered dependencies)
+            let mut dependents_to_notify: Vec<String> = Vec::new();
+            if let Some(updated_entry) = spreadsheet_guard.get_cell_entry(&cell_id_to_recalculate) {
+                dependents_to_notify.extend(updated_entry.dependents.iter().cloned());
+            }
+            drop(spreadsheet_guard); // Release lock before sending messages
+
+            // Recursively notify dependents
+            for dependent_id in dependents_to_notify {
+                sender
+                    .send((dependent_id, new_version_for_this_recalculation))
+                    .unwrap();
+            }
+        } else {
+            drop(spreadsheet_guard);
         }
     }
     Ok(())
