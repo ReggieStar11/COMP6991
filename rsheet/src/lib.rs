@@ -451,6 +451,7 @@ where
         }
     }
 
+    drop(sender); // Explicitly drop sender to allow worker thread to terminate
     for handle in join_handles {
         handle.join().unwrap().unwrap();
     }
