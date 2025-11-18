@@ -4,9 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::connection::handle_connection;
-use crate::spreadsheet::Spreadsheet;
-use crate::worker::run_worker_thread;
+use super::connection::handle_connection;
+use crate::spreadsheet::{run_worker_thread, Spreadsheet};
 
 pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error + Send + Sync>>
 where
@@ -16,17 +15,12 @@ where
     let (sender, receiver) = std::sync::mpsc::channel::<(String, u64)>();
     let shutdown_flag = Arc::new(AtomicBool::new(false));
 
-    // Spawn the single worker thread
-    let worker_spreadsheet_clone = Arc::clone(&spreadsheet);
-    let worker_shutdown_flag = Arc::clone(&shutdown_flag);
-    let worker_sender = sender.clone(); // Clone sender for worker thread to notify its own dependents
+    // Spawn worker thread for dependency recalculation
+    let worker_spreadsheet = Arc::clone(&spreadsheet);
+    let worker_shutdown = Arc::clone(&shutdown_flag);
+    let worker_sender = sender.clone();
     let worker_handle = thread::spawn(move || {
-        run_worker_thread(
-            worker_spreadsheet_clone,
-            receiver,
-            worker_sender,
-            worker_shutdown_flag,
-        )
+        run_worker_thread(worker_spreadsheet, receiver, worker_sender, worker_shutdown)
     });
 
     let mut join_handles = Vec::new();
@@ -50,19 +44,14 @@ where
         }
     }
 
-    // Wait for all connection threads to finish first
-    let worker_handle = join_handles.remove(0); // Remove worker handle
+    // Wait for all connection threads to finish
+    let worker_handle = join_handles.remove(0);
     for handle in join_handles {
         handle.join().unwrap().unwrap();
     }
 
-    // Now drop the original sender - this signals that no more messages will come from connection threads
     drop(sender);
-
-    // Signal the worker thread to shutdown
     shutdown_flag.store(true, Ordering::Relaxed);
-
-    // Wait for worker thread to finish processing
     worker_handle.join().unwrap().unwrap();
 
     Ok(())
