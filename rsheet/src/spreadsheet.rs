@@ -1,7 +1,10 @@
 use log::info;
 use rsheet_lib::cell_expr::CellExprEvalError;
 use rsheet_lib::cell_value::CellValue;
+use rsheet_lib::cells::column_number_to_name;
 use std::collections::{HashMap, HashSet};
+
+use crate::parsing::parse_cell_range;
 
 // Represents the state of a single cell in the spreadsheet.
 pub struct CellEntry {
@@ -69,13 +72,35 @@ impl Spreadsheet {
             }
 
             // Remove this cell from the dependents of its old dependencies
+            // For ranges (e.g., "A1_A3"), remove from dependents of all cells in the range
             for dep in &old_dependencies {
-                if let Some(dep_entry) = self.cells.get_mut(dep) {
-                    info!(
-                        "set_cell: Removing {} from dependents of {}",
-                        cell_identifier, dep
-                    );
-                    dep_entry.dependents.remove(&cell_identifier);
+                match parse_cell_range(dep) {
+                    Ok((start_id, end_id)) => {
+                        // Expand the range into individual cells
+                        for row in start_id.row..=end_id.row {
+                            for col in start_id.col..=end_id.col {
+                                let dep_cell_string =
+                                    format!("{}{}", column_number_to_name(col), row + 1);
+                                if let Some(dep_entry) = self.cells.get_mut(&dep_cell_string) {
+                                    info!(
+                                        "set_cell: Removing {} from dependents of {}",
+                                        cell_identifier, dep_cell_string
+                                    );
+                                    dep_entry.dependents.remove(&cell_identifier);
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // If parsing fails, treat as a single cell (shouldn't happen, but handle gracefully)
+                        if let Some(dep_entry) = self.cells.get_mut(dep) {
+                            info!(
+                                "set_cell: Removing {} from dependents of {}",
+                                cell_identifier, dep
+                            );
+                            dep_entry.dependents.remove(&cell_identifier);
+                        }
+                    }
                 }
             }
 
@@ -92,13 +117,35 @@ impl Spreadsheet {
             );
 
             // Add this cell to the dependents of its new dependencies
+            // For ranges (e.g., "A1_A3"), add to dependents of all cells in the range
             for dep in &new_dependencies {
-                if let Some(dep_entry) = self.cells.get_mut(dep) {
-                    info!(
-                        "set_cell: Adding {} to dependents of {}",
-                        cell_identifier, dep
-                    );
-                    dep_entry.dependents.insert(cell_identifier.clone());
+                match parse_cell_range(dep) {
+                    Ok((start_id, end_id)) => {
+                        // Expand the range into individual cells
+                        for row in start_id.row..=end_id.row {
+                            for col in start_id.col..=end_id.col {
+                                let dep_cell_string =
+                                    format!("{}{}", column_number_to_name(col), row + 1);
+                                if let Some(dep_entry) = self.cells.get_mut(&dep_cell_string) {
+                                    info!(
+                                        "set_cell: Adding {} to dependents of {}",
+                                        cell_identifier, dep_cell_string
+                                    );
+                                    dep_entry.dependents.insert(cell_identifier.clone());
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // If parsing fails, treat as a single cell (shouldn't happen, but handle gracefully)
+                        if let Some(dep_entry) = self.cells.get_mut(dep) {
+                            info!(
+                                "set_cell: Adding {} to dependents of {}",
+                                cell_identifier, dep
+                            );
+                            dep_entry.dependents.insert(cell_identifier.clone());
+                        }
+                    }
                 }
             }
         }
