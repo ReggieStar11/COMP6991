@@ -26,16 +26,6 @@ pub fn run_worker_thread(
                 cell_id_to_recalculate, entry.version, triggering_version
             );
 
-            // Skip if the dependent cell has been updated more recently than the dependency change
-            // This handles the complex edge case where an older update shouldn't overwrite a newer one
-            if entry.version > triggering_version {
-                info!(
-                    "Worker: Skipping {} because entry.version > triggering_version ({} > {}).",
-                    cell_id_to_recalculate, entry.version, triggering_version
-                );
-                continue;
-            }
-
             let expr_string = entry.expr_string.clone();
             let dependencies = entry.dependencies.clone();
 

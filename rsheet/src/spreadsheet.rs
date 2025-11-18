@@ -62,8 +62,10 @@ impl Spreadsheet {
             .unwrap_or(0);
         if version >= current_version {
             let mut old_dependencies = HashSet::new();
+            let mut existing_dependents = HashSet::new();
             if let Some(old_entry) = self.cells.get(&cell_identifier) {
                 old_dependencies = old_entry.dependencies.clone();
+                existing_dependents = old_entry.dependents.clone(); // Preserve existing dependents
             }
 
             // Remove this cell from the dependents of its old dependencies
@@ -77,13 +79,13 @@ impl Spreadsheet {
                 }
             }
 
-            // Insert the new cell entry
+            // Insert the new cell entry, preserving existing dependents
             self.cells.insert(
                 cell_identifier.clone(),
                 CellEntry {
                     expr_string,
                     dependencies: new_dependencies.clone(),
-                    dependents: HashSet::new(), // This will be populated by its dependencies
+                    dependents: existing_dependents, // Preserve existing dependents
                     value: cell_value,
                     version,
                 },
