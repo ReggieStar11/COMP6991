@@ -59,6 +59,16 @@ impl Spreadsheet {
             },
         };
 
+        info!(
+            "set_cell called for {} with version {} (current_version: {})",
+            cell_identifier,
+            version,
+            self.cells
+                .get(&cell_identifier)
+                .map(|entry| entry.version)
+                .unwrap_or(0)
+        );
+
         // Only update if the new version is newer than the existing one, or if no entry exists.
         let current_version = self
             .cells
@@ -96,6 +106,17 @@ impl Spreadsheet {
                     dep_entry.dependents.insert(cell_identifier.clone());
                 }
             }
+            info!(
+                "set_cell for {} successful, new value: {:?}, version: {}",
+                cell_identifier,
+                self.cells.get(&cell_identifier).unwrap().value,
+                version
+            );
+        } else {
+            info!(
+                "set_cell for {} skipped (old version: {})",
+                cell_identifier, version
+            );
         }
     }
 
@@ -166,7 +187,7 @@ fn parse_cell_range(s: &str) -> Result<(CellIdentifier, CellIdentifier), String>
     }
 }
 
-pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error>>
+pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error + Send + Sync>>
 where
     M: Manager,
 {
@@ -177,13 +198,23 @@ where
     let worker_spreadsheet_clone = Arc::clone(&spreadsheet);
     let worker_handle = thread::spawn(move || {
         for (cell_id_to_recalculate, triggering_version) in receiver {
+            info!(
+                "Worker: Received message to re-evaluate {} with version {}",
+                cell_id_to_recalculate, triggering_version
+            );
             let mut spreadsheet_guard = worker_spreadsheet_clone.lock().unwrap();
 
             if let Some(entry) = spreadsheet_guard.cells.get(&cell_id_to_recalculate) {
                 // Check if this recalculation is based on an older version
                 if triggering_version < entry.version {
+                    info!("Worker: Skipping re-evaluation of {} (triggering version {} < current version {})", cell_id_to_recalculate, triggering_version, entry.version);
                     continue; // Skip if a newer version has already updated this cell
                 }
+
+                info!(
+                    "Worker: Re-evaluating {} (triggering version {})",
+                    cell_id_to_recalculate, triggering_version
+                );
 
                 let expr_string = entry.expr_string.clone();
                 let dependencies = entry.dependencies.clone();
@@ -451,7 +482,6 @@ where
         }
     }
 
-    drop(sender); // Explicitly drop sender to allow worker thread to terminate
     for handle in join_handles {
         handle.join().unwrap().unwrap();
     }
