@@ -1,5 +1,6 @@
 use rsheet_lib::connect::{Connection, Manager};
 use std::error::Error;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -13,12 +14,20 @@ where
 {
     let spreadsheet = Arc::new(Mutex::new(Spreadsheet::new()));
     let (sender, receiver) = std::sync::mpsc::channel::<(String, u64)>();
+    let shutdown_flag = Arc::new(AtomicBool::new(false));
 
     // Spawn the single worker thread
     let worker_spreadsheet_clone = Arc::clone(&spreadsheet);
+    let worker_shutdown_flag = Arc::clone(&shutdown_flag);
     let worker_sender = sender.clone(); // Clone sender for worker thread to notify its own dependents
-    let worker_handle =
-        thread::spawn(move || run_worker_thread(worker_spreadsheet_clone, receiver, worker_sender));
+    let worker_handle = thread::spawn(move || {
+        run_worker_thread(
+            worker_spreadsheet_clone,
+            receiver,
+            worker_sender,
+            worker_shutdown_flag,
+        )
+    });
 
     let mut join_handles = Vec::new();
     join_handles.push(worker_handle);
@@ -41,10 +50,20 @@ where
         }
     }
 
-    drop(sender); // Explicitly drop sender to allow worker thread to terminate
+    // Wait for all connection threads to finish first
+    let worker_handle = join_handles.remove(0); // Remove worker handle
     for handle in join_handles {
         handle.join().unwrap().unwrap();
     }
+
+    // Now drop the original sender - this signals that no more messages will come from connection threads
+    drop(sender);
+
+    // Signal the worker thread to shutdown
+    shutdown_flag.store(true, Ordering::Relaxed);
+
+    // Wait for worker thread to finish processing
+    worker_handle.join().unwrap().unwrap();
 
     Ok(())
 }
