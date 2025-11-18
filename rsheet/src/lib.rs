@@ -48,7 +48,14 @@ where
                                                 let value =
                                                     spreadsheet_guard.get_cell(&cell_id_string);
                                                 drop(spreadsheet_guard); // Release lock early
-                                                let reply = Reply::Value(cell_id_string, value);
+                                                let reply = if value
+                                                    == CellValue::Error(
+                                                        "DEPENDENCY_ERROR_MARKER".to_string(),
+                                                    ) {
+                                                    Reply::Error("getting the value of a cell that depends on another cell with an error is not allowed.".to_string())
+                                                } else {
+                                                    Reply::Value(cell_id_string, value)
+                                                };
                                                 match send.write_message(reply) {
                                                     WriteMessageResult::Ok => { /* Message successfully sent, continue. */
                                                     }
@@ -217,10 +224,13 @@ impl Spreadsheet {
                 self.cells.insert(cell_identifier, cell_value);
             }
             Err(e) => {
-                // In Stage 1, we just store the error as a CellValue::Error for now.
-                // In later stages, we'll need to distinguish this from CellValue::Error produced by Rhai.
+                let error_message = match e {
+                    rsheet_lib::cell_expr::CellExprEvalError::VariableDependsOnError => {
+                        "DEPENDENCY_ERROR_MARKER".to_string()
+                    }
+                };
                 self.cells
-                    .insert(cell_identifier, CellValue::Error(format!("{:?}", e)));
+                    .insert(cell_identifier, CellValue::Error(error_message));
             }
         }
     }
