@@ -25,13 +25,15 @@ pub fn run_worker_thread(
                 "Worker: Processing {}. Current cell version={}, triggering_version={}",
                 cell_id_to_recalculate, entry.version, triggering_version
             );
-            // Check if this recalculation is based on an older version
-            if triggering_version < entry.version {
+
+            // Skip if the dependent cell has been updated more recently than the dependency change
+            // This handles the complex edge case where an older update shouldn't overwrite a newer one
+            if entry.version > triggering_version {
                 info!(
-                    "Worker: Skipping {} because triggering_version < entry.version ({} < {}).",
-                    cell_id_to_recalculate, triggering_version, entry.version
+                    "Worker: Skipping {} because entry.version > triggering_version ({} > {}).",
+                    cell_id_to_recalculate, entry.version, triggering_version
                 );
-                continue; // Skip if a newer version has already updated this cell
+                continue;
             }
 
             let expr_string = entry.expr_string.clone();
@@ -83,6 +85,7 @@ pub fn run_worker_thread(
             let evaluated_value = new_cell_expr.evaluate(&temp_spreadsheet_values);
 
             // Generate a NEW version number for this specific recalculation event
+            // This ensures each recalculation gets a unique, increasing version number
             let new_version_for_this_recalculation = spreadsheet_guard.get_next_version();
 
             spreadsheet_guard.set_cell(
@@ -90,7 +93,7 @@ pub fn run_worker_thread(
                 expr_string,
                 dependencies,
                 evaluated_value,
-                new_version_for_this_recalculation, // Use the new version for the cell update
+                new_version_for_this_recalculation,
             );
         }
     }
