@@ -9,8 +9,15 @@ use rsheet_lib::connect::{
 use rsheet_lib::replies::Reply;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+// Represents a message sent to the worker thread.
+enum WorkerMessage {
+    Recalculate(String, u64),
+    Terminate,
+}
 
 // Represents the state of a single cell in the spreadsheet.
 struct CellEntry {
@@ -192,89 +199,100 @@ where
     M: Manager,
 {
     let spreadsheet = Arc::new(Mutex::new(Spreadsheet::new()));
-    let (sender, receiver) = std::sync::mpsc::channel::<(String, u64)>(); // Channel for worker thread
+    let (sender, receiver) = std::sync::mpsc::channel::<WorkerMessage>(); // Channel for worker thread
 
     // Spawn the single worker thread
     let worker_spreadsheet_clone = Arc::clone(&spreadsheet);
     let worker_handle = thread::spawn(move || {
-        for (cell_id_to_recalculate, triggering_version) in receiver {
-            info!(
-                "Worker: Received message to re-evaluate {} with version {}",
-                cell_id_to_recalculate, triggering_version
-            );
-            let mut spreadsheet_guard = worker_spreadsheet_clone.lock().unwrap();
+        for msg in receiver {
+            match msg {
+                WorkerMessage::Recalculate(cell_id_to_recalculate, triggering_version) => {
+                    info!(
+                        "Worker: Received message to re-evaluate {} with version {}",
+                        cell_id_to_recalculate, triggering_version
+                    );
+                    let mut spreadsheet_guard = worker_spreadsheet_clone.lock().unwrap();
 
-            if let Some(entry) = spreadsheet_guard.cells.get(&cell_id_to_recalculate) {
-                // Check if this recalculation is based on an older version
-                if triggering_version < entry.version {
-                    info!("Worker: Skipping re-evaluation of {} (triggering version {} < current version {})", cell_id_to_recalculate, triggering_version, entry.version);
-                    continue; // Skip if a newer version has already updated this cell
-                }
-
-                info!(
-                    "Worker: Re-evaluating {} (triggering version {})",
-                    cell_id_to_recalculate, triggering_version
-                );
-
-                let expr_string = entry.expr_string.clone();
-                let dependencies = entry.dependencies.clone();
-
-                // Re-evaluate using current values of dependencies
-                let new_cell_expr = CellExpr::new(&expr_string);
-                let mut variables_map: HashMap<String, CellArgument> = HashMap::new();
-
-                // Temporarily release the lock to gather dependencies if needed, then re-acquire.
-                // For Stage 4, this is fine because we're only reading, not triggering more re-evaluations.
-                let mut temp_spreadsheet_values = HashMap::new();
-                for var_name in new_cell_expr.find_variable_names() {
-                    let (start_id, end_id) = match parse_cell_range(&var_name) {
-                        Ok(ids) => ids,
-                        Err(e) => {
-                            variables_map
-                                .insert(var_name, CellArgument::Value(CellValue::Error(e)));
-                            continue;
+                    if let Some(entry) = spreadsheet_guard.cells.get(&cell_id_to_recalculate) {
+                        // Check if this recalculation is based on an older version
+                        if triggering_version < entry.version {
+                            info!("Worker: Skipping re-evaluation of {} (triggering version {} < current version {})", cell_id_to_recalculate, triggering_version, entry.version);
+                            continue; // Skip if a newer version has already updated this cell
                         }
-                    };
 
-                    if start_id == end_id {
-                        let cell_id_string_dep = format!(
-                            "{}{}",
-                            column_number_to_name(start_id.col),
-                            start_id.row + 1
+                        info!(
+                            "Worker: Re-evaluating {} (triggering version {})",
+                            cell_id_to_recalculate, triggering_version
                         );
-                        let value = spreadsheet_guard.get_cell(&cell_id_string_dep);
-                        temp_spreadsheet_values.insert(var_name, CellArgument::Value(value));
-                    } else {
-                        let mut matrix = Vec::new();
-                        for row in start_id.row..=end_id.row {
-                            let mut row_vec = Vec::new();
-                            for col in start_id.col..=end_id.col {
-                                let cell_id_string_dep =
-                                    format!("{}{}", column_number_to_name(col), row + 1);
+
+                        let expr_string = entry.expr_string.clone();
+                        let dependencies = entry.dependencies.clone();
+
+                        // Re-evaluate using current values of dependencies
+                        let new_cell_expr = CellExpr::new(&expr_string);
+                        let mut variables_map: HashMap<String, CellArgument> = HashMap::new();
+
+                        // Temporarily release the lock to gather dependencies if needed, then re-acquire.
+                        // For Stage 4, this is fine because we're only reading, not triggering more re-evaluations.
+                        let mut temp_spreadsheet_values = HashMap::new();
+                        for var_name in new_cell_expr.find_variable_names() {
+                            let (start_id, end_id) = match parse_cell_range(&var_name) {
+                                Ok(ids) => ids,
+                                Err(e) => {
+                                    variables_map
+                                        .insert(var_name, CellArgument::Value(CellValue::Error(e)));
+                                    continue;
+                                }
+                            };
+
+                            if start_id == end_id {
+                                let cell_id_string_dep = format!(
+                                    "{}{}",
+                                    column_number_to_name(start_id.col),
+                                    start_id.row + 1
+                                );
                                 let value = spreadsheet_guard.get_cell(&cell_id_string_dep);
-                                row_vec.push(value);
+                                temp_spreadsheet_values
+                                    .insert(var_name, CellArgument::Value(value));
+                            } else {
+                                let mut matrix = Vec::new();
+                                for row in start_id.row..=end_id.row {
+                                    let mut row_vec = Vec::new();
+                                    for col in start_id.col..=end_id.col {
+                                        let cell_id_string_dep =
+                                            format!("{}{}", column_number_to_name(col), row + 1);
+                                        let value = spreadsheet_guard.get_cell(&cell_id_string_dep);
+                                        row_vec.push(value);
+                                    }
+                                    matrix.push(row_vec);
+                                }
+
+                                if start_id.col == end_id.col || start_id.row == end_id.row {
+                                    let vector = matrix.into_iter().flatten().collect();
+                                    temp_spreadsheet_values
+                                        .insert(var_name, CellArgument::Vector(vector));
+                                } else {
+                                    temp_spreadsheet_values
+                                        .insert(var_name, CellArgument::Matrix(matrix));
+                                }
                             }
-                            matrix.push(row_vec);
                         }
 
-                        if start_id.col == end_id.col || start_id.row == end_id.row {
-                            let vector = matrix.into_iter().flatten().collect();
-                            temp_spreadsheet_values.insert(var_name, CellArgument::Vector(vector));
-                        } else {
-                            temp_spreadsheet_values.insert(var_name, CellArgument::Matrix(matrix));
-                        }
+                        let evaluated_value = new_cell_expr.evaluate(&temp_spreadsheet_values);
+
+                        spreadsheet_guard.set_cell(
+                            cell_id_to_recalculate.clone(),
+                            expr_string,
+                            dependencies,
+                            evaluated_value,
+                            triggering_version,
+                        );
                     }
                 }
-
-                let evaluated_value = new_cell_expr.evaluate(&temp_spreadsheet_values);
-
-                spreadsheet_guard.set_cell(
-                    cell_id_to_recalculate.clone(),
-                    expr_string,
-                    dependencies,
-                    evaluated_value,
-                    triggering_version,
-                );
+                WorkerMessage::Terminate => {
+                    info!("Worker: Received terminate signal. Exiting.");
+                    break;
+                }
             }
         }
         Ok::<(), Box<dyn Error + Send + Sync>>(())
@@ -443,7 +461,10 @@ where
 
                                                 for dependent_id in dependents_to_notify {
                                                     sender_clone
-                                                        .send((dependent_id, current_version))
+                                                        .send(WorkerMessage::Recalculate(
+                                                            dependent_id,
+                                                            current_version,
+                                                        ))
                                                         .unwrap();
                                                 }
                                             }
@@ -477,11 +498,14 @@ where
                 join_handles.push(handle);
             }
             Connection::NoMoreConnections => {
+                // Send termination signal to worker thread
+                sender.send(WorkerMessage::Terminate).unwrap();
                 break;
             }
         }
     }
 
+    drop(sender); // Ensure the original sender is dropped even if not explicitly sent Terminate for completeness
     for handle in join_handles {
         handle.join().unwrap().unwrap();
     }
