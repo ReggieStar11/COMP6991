@@ -66,7 +66,7 @@ impl Spreadsheet {
             },
         };
 
-        info!(
+        eprintln!(
             "set_cell called for {} with version {} (current_version: {})",
             cell_identifier,
             version,
@@ -113,14 +113,14 @@ impl Spreadsheet {
                     dep_entry.dependents.insert(cell_identifier.clone());
                 }
             }
-            info!(
+            eprintln!(
                 "set_cell for {} successful, new value: {:?}, version: {}",
                 cell_identifier,
                 self.cells.get(&cell_identifier).unwrap().value,
                 version
             );
         } else {
-            info!(
+            eprintln!(
                 "set_cell for {} skipped (old version: {})",
                 cell_identifier, version
             );
@@ -198,6 +198,8 @@ pub fn start_server<M>(mut manager: M) -> Result<(), Box<dyn Error + Send + Sync
 where
     M: Manager,
 {
+    eprintln!("Starting rsheet server..."); // Diagnostic: Added to see if server even begins startup
+
     let spreadsheet = Arc::new(Mutex::new(Spreadsheet::new()));
     let (sender, receiver) = std::sync::mpsc::channel::<WorkerMessage>(); // Channel for worker thread
 
@@ -207,7 +209,7 @@ where
         for msg in receiver {
             match msg {
                 WorkerMessage::Recalculate(cell_id_to_recalculate, triggering_version) => {
-                    info!(
+                    eprintln!(
                         "Worker: Received message to re-evaluate {} with version {}",
                         cell_id_to_recalculate, triggering_version
                     );
@@ -216,11 +218,11 @@ where
                     if let Some(entry) = spreadsheet_guard.cells.get(&cell_id_to_recalculate) {
                         // Check if this recalculation is based on an older version
                         if triggering_version < entry.version {
-                            info!("Worker: Skipping re-evaluation of {} (triggering version {} < current version {})", cell_id_to_recalculate, triggering_version, entry.version);
+                            eprintln!("Worker: Skipping re-evaluation of {} (triggering version {} < current version {})", cell_id_to_recalculate, triggering_version, entry.version);
                             continue; // Skip if a newer version has already updated this cell
                         }
 
-                        info!(
+                        eprintln!(
                             "Worker: Re-evaluating {} (triggering version {})",
                             cell_id_to_recalculate, triggering_version
                         );
@@ -290,7 +292,7 @@ where
                     }
                 }
                 WorkerMessage::Terminate => {
-                    info!("Worker: Received terminate signal. Exiting.");
+                    eprintln!("Worker: Received terminate signal. Exiting.");
                     break;
                 }
             }
@@ -311,7 +313,7 @@ where
                 let handle = thread::spawn(move || {
                     let (mut recv, mut send) = (reader, writer);
                     loop {
-                        info!("Just got message");
+                        eprintln!("Client Thread: Just got message"); // Diagnostic: Added to see if client thread reads
                         match recv.read_message() {
                             ReadMessageResult::Message(msg) => {
                                 let command_result = msg.parse::<Command>();
