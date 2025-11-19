@@ -26,7 +26,7 @@ pub fn run_worker_thread(
                     // Re-evaluate cell with current dependency values
                     let new_cell_expr = CellExpr::new(&expr_string);
                     let temp_spreadsheet_values =
-                        collect_variables(&new_cell_expr, &*spreadsheet_guard);
+                        collect_variables(&new_cell_expr, &spreadsheet_guard);
                     let evaluated_value = new_cell_expr.evaluate(&temp_spreadsheet_values);
 
                     // Each recalculation gets a new version number

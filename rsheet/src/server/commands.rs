@@ -36,7 +36,7 @@ pub fn handle_set_command(
 
     // Collect dependencies and variable values
     let dependencies: HashSet<String> = new_cell_expr.find_variable_names().into_iter().collect();
-    let variables_map = collect_variables(&new_cell_expr, &*spreadsheet_guard);
+    let variables_map = collect_variables(&new_cell_expr, &spreadsheet_guard);
     let evaluated_value = new_cell_expr.evaluate(&variables_map);
     let cell_id_string = format_cell_identifier(&cell_identifier);
     spreadsheet_guard.set_cell(
