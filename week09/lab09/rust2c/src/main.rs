@@ -23,8 +23,6 @@ fn main() {
     let y: f64 = next_arg(&mut args, "y must be f64");
     let z: char = next_arg(&mut args, "z must be char");
 
-    // Call the external C function "secret_c_calculation"
-    // Convert Rust char to C char (i8)
     let z_c_char = z as u8 as i8;
     let secret_value =
         unsafe { secret_c_calculation(x as c_int, y as c_double, z_c_char as c_char) };

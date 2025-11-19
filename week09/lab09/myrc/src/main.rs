@@ -12,11 +12,9 @@ struct Gadget {
 // Example used from The Book: https://doc.rust-lang.org/std/rc/index.html#examples
 fn main() {
     // Create a reference-counted `Owner`.
-    let gadget_owner: MyRc<Owner> = MyRc::new(
-        Owner {
-            name: "Gadget Man".to_string(),
-        }
-    );
+    let gadget_owner: MyRc<Owner> = MyRc::new(Owner {
+        name: "Gadget Man".to_string(),
+    });
 
     // Create `Gadget`s belonging to `gadget_owner`. Cloning the `Rc<Owner>`
     // gives us a new pointer to the same `Owner` allocation, incrementing
