@@ -2,6 +2,7 @@ use rsheet_lib::command::Command;
 use rsheet_lib::connect::{ReadMessageResult, Reader, WriteMessageResult, Writer};
 use rsheet_lib::replies::Reply;
 use std::error::Error;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 use super::commands::handle_command;
@@ -11,7 +12,7 @@ pub fn handle_connection<R, W>(
     mut reader: R,
     mut writer: W,
     spreadsheet: Arc<Mutex<Spreadsheet>>,
-    sender: std::sync::mpsc::Sender<(String, u64)>,
+    sender: Sender<(String, u64)>,
 ) -> Result<(), Box<dyn Error + Send + Sync>>
 where
     R: Reader,

@@ -23,13 +23,12 @@ pub fn run_worker_thread(
                     let expr_string = entry.expr_string.clone();
                     let dependencies = entry.dependencies.clone();
 
-                    // Re-evaluate cell with current dependency values
+                    // Recalculate with current values
                     let new_cell_expr = CellExpr::new(&expr_string);
                     let temp_spreadsheet_values =
                         collect_variables(&new_cell_expr, &spreadsheet_guard);
                     let evaluated_value = new_cell_expr.evaluate(&temp_spreadsheet_values);
 
-                    // Each recalculation gets a new version number
                     let new_version = spreadsheet_guard.get_next_version();
 
                     spreadsheet_guard.set_cell(
@@ -40,23 +39,20 @@ pub fn run_worker_thread(
                         new_version,
                     );
 
-                    // Recursively notify dependents for multi-layered dependencies
+                    // Notify cells that depend on this one
                     let dependents_to_notify: Vec<String> = spreadsheet_guard
                         .get_cell_entry(&cell_id_to_recalculate)
                         .map(|e| e.dependents.iter().cloned().collect())
                         .unwrap_or_default();
-                    drop(spreadsheet_guard);
 
                     for dependent_id in dependents_to_notify {
                         sender.send((dependent_id, new_version)).unwrap();
                     }
-                } else {
-                    drop(spreadsheet_guard);
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Check if we should shut down
                 if shutdown_flag.load(Ordering::Relaxed) {
-                    // Drain any remaining messages before exiting
                     while receiver.try_recv().is_ok() {}
                     break;
                 }

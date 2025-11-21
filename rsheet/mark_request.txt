@@ -7,13 +7,69 @@ to receive marks for the Design Questions.
 
 ## Question 1:
 
+1. Parsing directly from string would be worse. We separate parsing (FromStr) from command handling, 
+which keeps things modular and testable. Direct parsing would mix parsing with business logic, 
+making it harder to maintain.
+
+2. A separate parse function instead of FromStr would also be worse. Implementing FromStr lets us 
+use the standard parse() method like in connection.rs line 23. It's the standard Rust way of doing 
+things and works well with the standard library. A separate function would mean calling it explicitly 
+everywhere instead of using the nice parse() syntax.
+
+3. Separate GetCommand and SetCommand structs would be better. This would give us better compile-time 
+type safety and we wouldn't need to pattern match on Command variants. But the current enum approach 
+is simpler and works fine since we only have two command types.
+
 ## Question 2:
+
+I handle Scalar variables in variables.rs at lines 26-34, Vector at line 50, and Matrix at line 53. 
+Most of the code is shared - all three use the same cell range parsing (lines 18-24), the same matrix 
+building loop (lines 37-45), and the same cell value retrieval (line 42). The only real difference 
+is the final step: scalars use CellArgument::Value, vectors flatten the matrix, and matrices 
+keep the 2D structure.
+
+I could probably improve this by extracting the matrix-building logic into a helper function to cut 
+down on duplication. The check that distinguishes vectors from matrices at line 47 could also be 
+clearer.
 
 ## Question 3:
 
+1. In commands.rs at line 15, I use Arc<Mutex<Spreadsheet>>. Rust's type system stops data races 
+because the mutex guard makes sure only one thread can access the spreadsheet at a time. 
+Without this, multiple threads could modify it at the same time, causing corruption. The ownership 
+system means you can't forget to lock the mutex.
+
+2. Similarly in commands.rs at line 58, I use Sender to send messages to the worker thread. 
+Rust's channels stop use-after-free bugs because the type system tracks the sender/receiver 
+relationship. If the receiver gets dropped, sending just returns an error instead of causing 
+undefined behavior. 
+
 ## Question 4:
 
+The complex edge case is handled in spreadsheet.rs lines 52-58. The version check 'if version >= 
+current_version' makes sure older updates from worker thread recalculations can't overwrite newer 
+cell values. This stops a race condition where a slow recalculation finishes after a newer update 
+and accidentally overwrites it.
+
+Version numbers always increase (get_next_version() at lines 84-87), so any update with a lower 
+version gets automatically rejected. This keeps everything in the right order even when updates 
+arrive out of sequence.
+
 ## Question 5:
+
+When "set A1 7" is issued: connection.rs line 23 parses the command. Then commands.rs line 33 
+locks the spreadsheet mutex, line 34 gets a new version number, and line 42 updates A1's value 
+to 7 with that version.
+
+commands.rs lines 51-54 collect B1 (which depends on A1), then line 58 sends ("B1", version) 
+through the channel to the worker thread.
+
+The worker receives at worker.rs line 19, locks the spreadsheet at line 20, recalculates B1 at 
+line 35 with a new version, then sends ("C1", new_version) at line 51. The worker then receives 
+C1 and recalculates it.
+
+Data passes between threads at: channel send in commands.rs line 58, channel receive in worker.rs 
+line 19, and channel send in worker.rs line 51.
 
 # Questions to the Marker (OPTIONAL)
 
@@ -21,7 +77,9 @@ Remember: you don't have to fill these out; but if
 you want to get feedback on a particular element of
 your code; you can!
 
-1.
+1. Is the version checking approach in spreadsheet.rs the best way to handle out-of-order updates? 
+I'm using increasing version numbers to reject stale updates, but wondering if there's 
+a cleaner solution.
 
 2.
 

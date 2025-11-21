@@ -49,7 +49,7 @@ impl Spreadsheet {
             },
         };
 
-        // Version check prevents older updates from overwriting newer ones
+        // Check version to stop older updates from overwriting newer ones
         let current_version = self
             .cells
             .get(&cell_identifier)
@@ -63,7 +63,7 @@ impl Spreadsheet {
                 existing_dependents = old_entry.dependents.clone();
             }
 
-            // Update dependency graph: remove from old dependencies, add to new ones
+            // Update dependency graph
             remove_dependencies(&mut self.cells, &old_dependencies, &cell_identifier);
 
             self.cells.insert(

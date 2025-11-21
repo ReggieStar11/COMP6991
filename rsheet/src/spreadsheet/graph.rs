@@ -4,7 +4,6 @@ use std::collections::HashSet;
 use super::spreadsheet::CellEntry;
 use crate::parsing::parse_cell_range;
 
-/// Expands a dependency like "A1_A3" or "A1" into individual cell identifiers
 fn expand_dependency(dep: &str) -> Vec<String> {
     match parse_cell_range(dep) {
         Ok((start_id, end_id)) => {
@@ -20,7 +19,6 @@ fn expand_dependency(dep: &str) -> Vec<String> {
     }
 }
 
-/// Updates the dependency graph by applying a function to each cell in a dependency
 fn update_dependency<F>(
     cells: &mut std::collections::HashMap<String, CellEntry>,
     dep: &str,
@@ -35,7 +33,6 @@ fn update_dependency<F>(
     }
 }
 
-/// Removes a cell from the dependents of its old dependencies
 pub fn remove_dependencies(
     cells: &mut std::collections::HashMap<String, CellEntry>,
     old_dependencies: &HashSet<String>,
@@ -48,7 +45,6 @@ pub fn remove_dependencies(
     }
 }
 
-/// Adds a cell to the dependents of its new dependencies
 pub fn add_dependencies(
     cells: &mut std::collections::HashMap<String, CellEntry>,
     new_dependencies: &HashSet<String>,
