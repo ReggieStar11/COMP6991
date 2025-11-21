@@ -34,15 +34,15 @@ pub fn handle_set_command(
     let dependencies: HashSet<String> = new_cell_expr.find_variable_names().into_iter().collect();
     let cell_id_string = format_cell_identifier(&cell_identifier);
 
-    // Collect variables and evaluate while NOT holding the mutex
-    // This prevents blocking operations from blocking other threads
+    // Get variables quickly, then release mutex before evaluating
+    // This way if evaluation blocks (like with sleep_then), other threads can still access the spreadsheet
     let variables_map = {
         let spreadsheet_guard = spreadsheet.lock().unwrap();
         collect_variables(&new_cell_expr, &spreadsheet_guard)
     };
     let evaluated_value = new_cell_expr.evaluate(&variables_map);
 
-    // Now acquire mutex again to update the spreadsheet
+    // Lock again to update the spreadsheet
     let mut spreadsheet_guard = spreadsheet.lock().unwrap();
     let current_version = spreadsheet_guard.get_next_version();
     spreadsheet_guard.set_cell(
