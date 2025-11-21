@@ -3,8 +3,8 @@ use rsheet_lib::cell_value::CellValue;
 use rsheet_lib::command::Command;
 use rsheet_lib::replies::Reply;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use crate::parsing::format_cell_identifier;
 use crate::spreadsheet::{collect_variables, Spreadsheet};
@@ -30,14 +30,21 @@ pub fn handle_set_command(
     cell_identifier: rsheet_lib::command::CellIdentifier,
     cell_expr: String,
 ) {
+    let new_cell_expr = CellExpr::new(&cell_expr);
+    let dependencies: HashSet<String> = new_cell_expr.find_variable_names().into_iter().collect();
+    let cell_id_string = format_cell_identifier(&cell_identifier);
+
+    // Collect variables and evaluate while NOT holding the mutex
+    // This prevents blocking operations from blocking other threads
+    let variables_map = {
+        let spreadsheet_guard = spreadsheet.lock().unwrap();
+        collect_variables(&new_cell_expr, &spreadsheet_guard)
+    };
+    let evaluated_value = new_cell_expr.evaluate(&variables_map);
+
+    // Now acquire mutex again to update the spreadsheet
     let mut spreadsheet_guard = spreadsheet.lock().unwrap();
     let current_version = spreadsheet_guard.get_next_version();
-    let new_cell_expr = CellExpr::new(&cell_expr);
-
-    let dependencies: HashSet<String> = new_cell_expr.find_variable_names().into_iter().collect();
-    let variables_map = collect_variables(&new_cell_expr, &spreadsheet_guard);
-    let evaluated_value = new_cell_expr.evaluate(&variables_map);
-    let cell_id_string = format_cell_identifier(&cell_identifier);
     spreadsheet_guard.set_cell(
         cell_id_string.clone(),
         cell_expr.clone(),
